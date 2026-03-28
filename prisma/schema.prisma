@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organizacao {
+  id        String   @id @default(uuid())
+  nome      String
+  cnpj      String?
+  modelo    String
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  usuarios     Usuario[]
+  centrosCusto CentroCusto[]
+  categorias   Categoria[]
+  itens        ItemCatalogo[]
+
+  @@map("organizacao")
+}
+
+model Usuario {
+  id            String   @id @default(uuid())
+  idOrganizacao String   @map("id_organizacao")
+  nome          String
+  email         String   @unique
+  perfil        String
+  alcadaValor   Decimal? @map("alcada_valor") @db.Decimal(15, 2)
+  idSubstituto  String?  @map("id_substituto")
+  ativo         Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  organizacao       Organizacao      @relation(fields: [idOrganizacao], references: [id])
+  substituto        Usuario?         @relation("Substituto", fields: [idSubstituto], references: [id])
+  substituidos      Usuario[]        @relation("Substituto")
+  itensCriados      ItemCatalogo[]
+  precosRegistrados PrecoReferencia[]
+  auditorias        AuditoriaItem[]
+
+  @@map("usuario")
+}
+
+model CentroCusto {
+  id            String  @id @default(uuid())
+  idOrganizacao String  @map("id_organizacao")
+  codigo        String
+  descricao     String
+  ativo         Boolean @default(true)
+
+  organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
+
+  @@unique([idOrganizacao, codigo])
+  @@map("centro_custo")
+}
+
+model Categoria {
+  id            String  @id @default(uuid())
+  idOrganizacao String  @map("id_organizacao")
+  nome          String
+  idPai         String? @map("id_pai")
+  nivel         Int
+  atributos     Json?
+
+  organizacao Organizacao  @relation(fields: [idOrganizacao], references: [id])
+  pai         Categoria?   @relation("CategoriaPai", fields: [idPai], references: [id])
+  filhos      Categoria[]  @relation("CategoriaPai")
+  itens       ItemCatalogo[]
+
+  @@map("categoria")
+}
+
+model ItemCatalogo {
+  id                 String   @id @default(uuid())
+  idOrganizacao      String   @map("id_organizacao")
+  codigoInterno      String   @map("codigo_interno")
+  nome               String
+  descricaoTecnica   String   @map("descricao_tecnica")
+  tipo               String
+  unidadeMedida      String   @map("unidade_medida")
+  idCategoria        String?  @map("id_categoria")
+  codigoCatmatCatser String?  @map("codigo_catmat_catser")
+  status             String   @default("Rascunho")
+  sigilo             Boolean  @default(false)
+  usoUnico           Boolean  @default(false) @map("uso_unico")
+  idItemSucessor     String?  @map("id_item_sucessor")
+  atributosExtras    Json?    @map("atributos_extras")
+  criadoPor          String   @map("criado_por")
+  criadoEm           DateTime @default(now()) @map("criado_em")
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em")
+
+  organizacao   Organizacao    @relation(fields: [idOrganizacao], references: [id])
+  categoria     Categoria?     @relation(fields: [idCategoria], references: [id])
+  criador       Usuario        @relation(fields: [criadoPor], references: [id])
+  sucessor      ItemCatalogo?  @relation("ItemSucessor", fields: [idItemSucessor], references: [id])
+  predecessores ItemCatalogo[] @relation("ItemSucessor")
+  precos        PrecoReferencia[]
+  auditorias    AuditoriaItem[]
+
+  @@unique([idOrganizacao, codigoInterno])
+  @@map("item_catalogo")
+}
+
+model PrecoReferencia {
+  id             String   @id @default(uuid())
+  idItem         String   @map("id_item")
+  valor          Decimal  @db.Decimal(15, 4)
+  fonte          String
+  dataReferencia DateTime @map("data_referencia") @db.Date
+  responsavelId  String   @map("responsavel_id")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  item        ItemCatalogo @relation(fields: [idItem], references: [id])
+  responsavel Usuario      @relation(fields: [responsavelId], references: [id])
+
+  @@map("preco_referencia")
+}
+
+model AuditoriaItem {
+  id          String   @id @default(uuid())
+  idItem      String   @map("id_item")
+  acao        String
+  campo       String?
+  valorAntes  String?  @map("valor_antes")
+  valorDepois String?  @map("valor_depois")
+  usuarioId   String   @map("usuario_id")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  item    ItemCatalogo @relation(fields: [idItem], references: [id])
+  usuario Usuario      @relation(fields: [usuarioId], references: [id])
+
+  @@map("auditoria_item")
+}
