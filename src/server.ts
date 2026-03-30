@@ -2,16 +2,27 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import fastifyCors from '@fastify/cors'
 import { catalogoRoutes } from './modules/catalogo/catalogo.routes'
+import { pedidoRoutes } from './modules/pedido/routes/pedido.routes'
+import { fornecedorRoutes } from './modules/fornecedor/routes/fornecedor.routes'
 
 const app = Fastify({ logger: true })
 
 app.register(fastifyCors, { origin: '*' })
+app.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
+  try {
+    done(null, JSON.parse(body as string))
+  } catch (err) {
+    done(err as Error, undefined)
+  }
+})
 
 app.get('/health', async () => {
-  return { status: 'ok', projeto: 'Portal de Compras API', versao: '1.0.0' }
+  return { status: 'ok', projeto: 'Portal de Compras API', versao: '2.0.0' }
 })
 
 app.register(catalogoRoutes)
+app.register(pedidoRoutes)
+app.register(fornecedorRoutes)
 
 const start = async () => {
   try {

@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
 }
 
 model Organizacao {
@@ -15,10 +16,13 @@ model Organizacao {
   ativo     Boolean  @default(true)
   criadoEm  DateTime @default(now()) @map("criado_em")
 
-  usuarios     Usuario[]
-  centrosCusto CentroCusto[]
-  categorias   Categoria[]
-  itens        ItemCatalogo[]
+  usuarios        Usuario[]
+  centrosCusto    CentroCusto[]
+  categorias      Categoria[]
+  itens           ItemCatalogo[]
+  alcadas         AlcadaAprovacao[]
+  pedidos         Pedido[]
+  fornecedores    Fornecedor[]
 
   @@map("organizacao")
 }
@@ -34,12 +38,15 @@ model Usuario {
   ativo         Boolean  @default(true)
   criadoEm     DateTime @default(now()) @map("criado_em")
 
-  organizacao       Organizacao      @relation(fields: [idOrganizacao], references: [id])
-  substituto        Usuario?         @relation("Substituto", fields: [idSubstituto], references: [id])
-  substituidos      Usuario[]        @relation("Substituto")
-  itensCriados      ItemCatalogo[]
-  precosRegistrados PrecoReferencia[]
-  auditorias        AuditoriaItem[]
+  organizacao         Organizacao       @relation(fields: [idOrganizacao], references: [id])
+  substituto          Usuario?          @relation("Substituto", fields: [idSubstituto], references: [id])
+  substituidos        Usuario[]         @relation("Substituto")
+  itensCriados        ItemCatalogo[]
+  precosRegistrados   PrecoReferencia[]
+  auditorias          AuditoriaItem[]
+  pedidosSolicitados  Pedido[]          @relation("PedidoSolicitante")
+  aprovacoesPedido    AprovacaoPedido[] @relation("AprovacaoPedido")
+  auditoriasPedido    AuditoriaPedido[]
 
   @@map("usuario")
 }
@@ -52,6 +59,7 @@ model CentroCusto {
   ativo         Boolean @default(true)
 
   organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
+  pedidos     Pedido[]
 
   @@unique([idOrganizacao, codigo])
   @@map("centro_custo")
@@ -65,10 +73,11 @@ model Categoria {
   nivel         Int
   atributos     Json?
 
-  organizacao Organizacao  @relation(fields: [idOrganizacao], references: [id])
-  pai         Categoria?   @relation("CategoriaPai", fields: [idPai], references: [id])
-  filhos      Categoria[]  @relation("CategoriaPai")
-  itens       ItemCatalogo[]
+  organizacao    Organizacao              @relation(fields: [idOrganizacao], references: [id])
+  pai            Categoria?               @relation("CategoriaPai", fields: [idPai], references: [id])
+  filhos         Categoria[]              @relation("CategoriaPai")
+  itens          ItemCatalogo[]
+  qualificacoes  QualificacaoFornecedor[]
 
   @@map("categoria")
 }
@@ -92,13 +101,14 @@ model ItemCatalogo {
   criadoEm           DateTime @default(now()) @map("criado_em")
   atualizadoEm       DateTime @updatedAt @map("atualizado_em")
 
-  organizacao   Organizacao    @relation(fields: [idOrganizacao], references: [id])
-  categoria     Categoria?     @relation(fields: [idCategoria], references: [id])
-  criador       Usuario        @relation(fields: [criadoPor], references: [id])
-  sucessor      ItemCatalogo?  @relation("ItemSucessor", fields: [idItemSucessor], references: [id])
-  predecessores ItemCatalogo[] @relation("ItemSucessor")
+  organizacao   Organizacao     @relation(fields: [idOrganizacao], references: [id])
+  categoria     Categoria?      @relation(fields: [idCategoria], references: [id])
+  criador       Usuario         @relation(fields: [criadoPor], references: [id])
+  sucessor      ItemCatalogo?   @relation("ItemSucessor", fields: [idItemSucessor], references: [id])
+  predecessores ItemCatalogo[]  @relation("ItemSucessor")
   precos        PrecoReferencia[]
   auditorias    AuditoriaItem[]
+  itensPedido   ItemPedido[]
 
   @@unique([idOrganizacao, codigoInterno])
   @@map("item_catalogo")
@@ -133,4 +143,152 @@ model AuditoriaItem {
   usuario Usuario      @relation(fields: [usuarioId], references: [id])
 
   @@map("auditoria_item")
+}
+
+// ─────────────────────────────────────────────
+// M2 — Pedido de Compra
+// ─────────────────────────────────────────────
+
+model AlcadaAprovacao {
+  id            String   @id @default(uuid())
+  idOrganizacao String   @map("id_organizacao")
+  perfil        String
+  valorMinimo   Decimal  @map("valor_minimo") @db.Decimal(15, 2)
+  valorMaximo   Decimal? @map("valor_maximo") @db.Decimal(15, 2)
+  nivel         Int
+  ativo         Boolean  @default(true)
+
+  organizacao Organizacao       @relation(fields: [idOrganizacao], references: [id])
+  aprovacoes  AprovacaoPedido[]
+
+  @@map("alcada_aprovacao")
+}
+
+model Pedido {
+  id            String   @id @default(uuid())
+  idOrganizacao String   @map("id_organizacao")
+  numero        String
+  idSolicitante String   @map("id_solicitante")
+  idCentroCusto String   @map("id_centro_custo")
+  justificativa String
+  valorTotal    Decimal  @default(0) @map("valor_total") @db.Decimal(15, 2)
+  status        String   @default("Rascunho")
+  nivelAtual    Int      @default(0) @map("nivel_atual")
+  destinoPos    String?  @map("destino_pos")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  organizacao Organizacao       @relation(fields: [idOrganizacao], references: [id])
+  solicitante Usuario           @relation("PedidoSolicitante", fields: [idSolicitante], references: [id])
+  centroCusto CentroCusto       @relation(fields: [idCentroCusto], references: [id])
+  itens       ItemPedido[]
+  aprovacoes  AprovacaoPedido[]
+  auditorias  AuditoriaPedido[]
+
+  @@unique([idOrganizacao, numero])
+  @@map("pedido")
+}
+
+model ItemPedido {
+  id            String  @id @default(uuid())
+  idPedido      String  @map("id_pedido")
+  idItem        String  @map("id_item")
+  quantidade    Decimal @db.Decimal(15, 4)
+  precoUnitario Decimal @map("preco_unitario") @db.Decimal(15, 4)
+  subtotal      Decimal @db.Decimal(15, 2)
+  observacao    String?
+
+  pedido Pedido       @relation(fields: [idPedido], references: [id])
+  item   ItemCatalogo @relation(fields: [idItem], references: [id])
+
+  @@map("item_pedido")
+}
+
+model AprovacaoPedido {
+  id            String   @id @default(uuid())
+  idPedido      String   @map("id_pedido")
+  idAlcada      String   @map("id_alcada")
+  idAprovador   String   @map("id_aprovador")
+  nivel         Int
+  decisao       String
+  justificativa String?
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  pedido    Pedido          @relation(fields: [idPedido], references: [id])
+  alcada    AlcadaAprovacao @relation(fields: [idAlcada], references: [id])
+  aprovador Usuario         @relation("AprovacaoPedido", fields: [idAprovador], references: [id])
+
+  @@map("aprovacao_pedido")
+}
+
+model AuditoriaPedido {
+  id          String   @id @default(uuid())
+  idPedido    String   @map("id_pedido")
+  acao        String
+  campo       String?
+  valorAntes  String?  @map("valor_antes")
+  valorDepois String?  @map("valor_depois")
+  usuarioId   String   @map("usuario_id")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  pedido  Pedido  @relation(fields: [idPedido], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("auditoria_pedido")
+}
+
+// ─────────────────────────────────────────────
+// M5 — Fornecedores
+// ─────────────────────────────────────────────
+
+model Fornecedor {
+  id             String   @id @default(uuid())
+  idOrganizacao  String   @map("id_organizacao")
+  cnpj           String
+  razaoSocial    String   @map("razao_social")
+  nomeFantasia   String?  @map("nome_fantasia")
+  email          String?
+  telefone       String?
+  status         String   @default("Ativo")
+  motivoBloqueio String?  @map("motivo_bloqueio")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
+
+  organizacao   Organizacao              @relation(fields: [idOrganizacao], references: [id])
+  qualificacoes QualificacaoFornecedor[]
+  documentos    DocumentoFornecedor[]
+
+  @@unique([idOrganizacao, cnpj])
+  @@map("fornecedor")
+}
+
+model QualificacaoFornecedor {
+  id            String  @id @default(uuid())
+  idFornecedor  String  @map("id_fornecedor")
+  idCategoria   String  @map("id_categoria")
+  capacidade    String?
+  certificacoes String?
+  ativo         Boolean @default(true)
+
+  fornecedor Fornecedor @relation(fields: [idFornecedor], references: [id])
+  categoria  Categoria  @relation(fields: [idCategoria], references: [id])
+
+  @@unique([idFornecedor, idCategoria])
+  @@map("qualificacao_fornecedor")
+}
+
+model DocumentoFornecedor {
+  id             String    @id @default(uuid())
+  idFornecedor   String    @map("id_fornecedor")
+  tipo           String
+  numero         String?
+  dataEmissao    DateTime? @map("data_emissao") @db.Date
+  dataVencimento DateTime? @map("data_vencimento") @db.Date
+  arquivo        String?
+  status         String    @default("Vigente")
+  criadoEm      DateTime  @default(now()) @map("criado_em")
+
+  fornecedor Fornecedor @relation(fields: [idFornecedor], references: [id])
+
+  @@map("documento_fornecedor")
 }
