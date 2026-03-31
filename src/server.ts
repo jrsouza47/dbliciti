@@ -1,13 +1,32 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
 import fastifyCors from '@fastify/cors'
+import fastifyMultipart from '@fastify/multipart'
 import { catalogoRoutes } from './modules/catalogo/catalogo.routes'
+import { catalogoDuplicatasRoutes } from './modules/catalogo/catalogo.duplicatas.routes'
+import { catalogoCatmatRoutes } from './modules/catalogo/catalogo.catmat.routes'
+import { configuracoesRoutes } from './modules/configuracoes/configuracoes.routes'
+import { hierarquiaRoutes } from './modules/hierarquia/hierarquia.routes'
+import { catalogoImportacaoRoutes } from './modules/catalogo/catalogo.importacao.routes'
 import { pedidoRoutes } from './modules/pedido/routes/pedido.routes'
 import { fornecedorRoutes } from './modules/fornecedor/routes/fornecedor.routes'
+import { cotacaoRoutes } from './modules/cotacao/cotacao.routes'
+import { portalRoutes } from './modules/portal/portal.routes'
+import { contratoRoutes } from './modules/contrato/contrato.routes'
+import { negociacaoRoutes } from './modules/negociacao/negociacao.routes'
+import { licitacaoRoutes } from './modules/licitacao/licitacao.routes'
+import { monitoramentoRoutes } from './modules/monitoramento/monitoramento.routes'
+import { fornecedorHistoricoRoutes } from './modules/fornecedor/routes/fornecedor.historico.routes'
 
 const app = Fastify({ logger: true })
 
 app.register(fastifyCors, { origin: '*' })
+app.register(fastifyMultipart)
+app.register(cotacaoRoutes)
+app.register(portalRoutes)
+app.register(contratoRoutes)
+app.register(negociacaoRoutes)
+
 app.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
   try {
     done(null, JSON.parse(body as string))
@@ -21,8 +40,16 @@ app.get('/health', async () => {
 })
 
 app.register(catalogoRoutes)
+app.register(catalogoImportacaoRoutes)
+app.register(catalogoDuplicatasRoutes)
+app.register(catalogoCatmatRoutes)
+app.register(configuracoesRoutes)
+app.register(hierarquiaRoutes)
 app.register(pedidoRoutes)
 app.register(fornecedorRoutes)
+app.register(licitacaoRoutes)
+app.register(monitoramentoRoutes)
+app.register(fornecedorHistoricoRoutes)
 
 const start = async () => {
   try {

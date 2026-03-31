@@ -1,4 +1,6 @@
 import { FastifyInstance } from 'fastify'
+import { verificarDuplicataAoCadastrar } from './catalogo.duplicatas'
+import { lerConfiguracao } from '../configuracoes/configuracoes.service'
 import {
   listarItens,
   buscarItemPorId,
@@ -48,8 +50,27 @@ export async function catalogoRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Campos obrigatórios faltando' })
     }
 
+    const alertaAtivo = await lerConfiguracao(body.idOrganizacao, 'alertaDuplicatasItens')
+
+    const { temSimilar, itensSimilares } = alertaAtivo
+      ? await verificarDuplicataAoCadastrar(body.idOrganizacao, body.nome)
+      : { temSimilar: false, itensSimilares: [] }
+
     const item = await criarItem(body)
-    return reply.status(201).send(item)
+
+    return reply.status(201).send({
+      ...item,
+      alerta: temSimilar
+        ? {
+            mensagem: 'Item cadastrado, mas existem itens com nome similar no catálogo.',
+            itensSimilares: itensSimilares.map(s => ({
+              id: s.id,
+              codigoInterno: s.codigoInterno,
+              nome: s.nome
+            }))
+          }
+        : undefined
+    })
   })
 
   // PATCH /itens/:id/status — atualizar status (aprovação)

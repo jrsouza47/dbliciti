@@ -9,20 +9,27 @@ datasource db {
 }
 
 model Organizacao {
-  id        String   @id @default(uuid())
-  nome      String
-  cnpj      String?
-  modelo    String
-  ativo     Boolean  @default(true)
-  criadoEm  DateTime @default(now()) @map("criado_em")
+  id             String   @id @default(uuid())
+  nome           String
+  cnpj           String?
+  modelo         String
+  ativo          Boolean  @default(true)
+  configuracoes  Json?    @map("configuracoes")
+  criadoEm       DateTime @default(now()) @map("criado_em")
 
-  usuarios        Usuario[]
-  centrosCusto    CentroCusto[]
-  categorias      Categoria[]
-  itens           ItemCatalogo[]
-  alcadas         AlcadaAprovacao[]
-  pedidos         Pedido[]
-  fornecedores    Fornecedor[]
+  usuarios              Usuario[]
+  centrosCusto          CentroCusto[]
+  categorias            Categoria[]
+  itens                 ItemCatalogo[]
+  alcadas               AlcadaAprovacao[]
+  pedidos               Pedido[]
+  fornecedores          Fornecedor[]
+  cotacoes              Cotacao[]
+  contratos             Contrato[]
+  licitacoes            Licitacao[]
+  alertasSancao         AlertaSancao[]
+  logsFracionamento     LogFracionamento[]
+  estruturasHierarquia  EstruturaHierarquia[]
 
   @@map("organizacao")
 }
@@ -36,17 +43,25 @@ model Usuario {
   alcadaValor   Decimal? @map("alcada_valor") @db.Decimal(15, 2)
   idSubstituto  String?  @map("id_substituto")
   ativo         Boolean  @default(true)
-  criadoEm     DateTime @default(now()) @map("criado_em")
+  criadoEm      DateTime @default(now()) @map("criado_em")
 
-  organizacao         Organizacao       @relation(fields: [idOrganizacao], references: [id])
-  substituto          Usuario?          @relation("Substituto", fields: [idSubstituto], references: [id])
-  substituidos        Usuario[]         @relation("Substituto")
-  itensCriados        ItemCatalogo[]
-  precosRegistrados   PrecoReferencia[]
-  auditorias          AuditoriaItem[]
-  pedidosSolicitados  Pedido[]          @relation("PedidoSolicitante")
-  aprovacoesPedido    AprovacaoPedido[] @relation("AprovacaoPedido")
-  auditoriasPedido    AuditoriaPedido[]
+  organizacao                 Organizacao             @relation(fields: [idOrganizacao], references: [id])
+  substituto                  Usuario?                @relation("Substituto", fields: [idSubstituto], references: [id])
+  substituidos                Usuario[]               @relation("Substituto")
+  itensCriados                ItemCatalogo[]
+  precosRegistrados           PrecoReferencia[]
+  auditorias                  AuditoriaItem[]
+  pedidosSolicitados          Pedido[]                @relation("PedidoSolicitante")
+  aprovacoesPedido            AprovacaoPedido[]       @relation("AprovacaoPedido")
+  auditoriasPedido            AuditoriaPedido[]
+  contratosComoFiscal         Contrato[]              @relation("ContratoFiscal")
+  contratosComoCriador        Contrato[]              @relation("ContratoCriador")
+  entregasConfirmadas         Entrega[]               @relation("EntregaConfirmador")
+  negociacoesIniciadas        Negociacao[]            @relation("NegociacaoIniciador")
+  ocorrenciasRegistradas      OcorrenciaContrato[]    @relation("OcorrenciaRegistrador")
+  penalidadesAplicadas        PenalidadeContrato[]    @relation("PenalidadeAplicador")
+  fracionamentosDetectados    LogFracionamento[]      @relation("FracionamentoSolicitante")
+  estruturasCriadas           EstruturaHierarquia[]
 
   @@map("usuario")
 }
@@ -66,18 +81,26 @@ model CentroCusto {
 }
 
 model Categoria {
-  id            String  @id @default(uuid())
-  idOrganizacao String  @map("id_organizacao")
-  nome          String
-  idPai         String? @map("id_pai")
-  nivel         Int
-  atributos     Json?
+  id              String   @id @default(uuid())
+  idOrganizacao   String   @map("id_organizacao")
+  idEstrutura     String?  @map("id_estrutura")
+  nome            String
+  codigo          String?
+  idPai           String?  @map("id_pai")
+  nivel           Int      @default(1)
+  atributos       Json?
+  ativo           Boolean  @default(true)
+  ultimoNivel     Boolean  @default(false) @map("ultimo_nivel")
+  criadoEm        DateTime @default(now()) @map("criado_em")
+  atualizadoEm    DateTime @updatedAt @map("atualizado_em")
 
   organizacao    Organizacao              @relation(fields: [idOrganizacao], references: [id])
+  estrutura      EstruturaHierarquia?     @relation(fields: [idEstrutura], references: [id])
   pai            Categoria?               @relation("CategoriaPai", fields: [idPai], references: [id])
   filhos         Categoria[]              @relation("CategoriaPai")
   itens          ItemCatalogo[]
   qualificacoes  QualificacaoFornecedor[]
+  itemCategorias ItemCategoria[]
 
   @@map("categoria")
 }
@@ -101,14 +124,17 @@ model ItemCatalogo {
   criadoEm           DateTime @default(now()) @map("criado_em")
   atualizadoEm       DateTime @updatedAt @map("atualizado_em")
 
-  organizacao   Organizacao     @relation(fields: [idOrganizacao], references: [id])
-  categoria     Categoria?      @relation(fields: [idCategoria], references: [id])
-  criador       Usuario         @relation(fields: [criadoPor], references: [id])
-  sucessor      ItemCatalogo?   @relation("ItemSucessor", fields: [idItemSucessor], references: [id])
-  predecessores ItemCatalogo[]  @relation("ItemSucessor")
-  precos        PrecoReferencia[]
-  auditorias    AuditoriaItem[]
-  itensPedido   ItemPedido[]
+  organizacao     Organizacao       @relation(fields: [idOrganizacao], references: [id])
+  categoria       Categoria?        @relation(fields: [idCategoria], references: [id])
+  criador         Usuario           @relation(fields: [criadoPor], references: [id])
+  sucessor        ItemCatalogo?     @relation("ItemSucessor", fields: [idItemSucessor], references: [id])
+  predecessores   ItemCatalogo[]    @relation("ItemSucessor")
+  precos          PrecoReferencia[]
+  auditorias      AuditoriaItem[]
+  itensPedido     ItemPedido[]
+  itensCotacao    ItemCotacao[]
+  itensContrato   ItemContrato[]
+  itemCategorias  ItemCategoria[]
 
   @@unique([idOrganizacao, codigoInterno])
   @@map("item_catalogo")
@@ -257,6 +283,9 @@ model Fornecedor {
   organizacao   Organizacao              @relation(fields: [idOrganizacao], references: [id])
   qualificacoes QualificacaoFornecedor[]
   documentos    DocumentoFornecedor[]
+  convites      ConviteCotacao[]
+  contratos     Contrato[]
+  alertasSancao AlertaSancao[]
 
   @@unique([idOrganizacao, cnpj])
   @@map("fornecedor")
@@ -291,4 +320,341 @@ model DocumentoFornecedor {
   fornecedor Fornecedor @relation(fields: [idFornecedor], references: [id])
 
   @@map("documento_fornecedor")
+}
+
+// ─────────────────────────────────────────────
+// M3 — Cotação & Portal Externo
+// ─────────────────────────────────────────────
+
+model Cotacao {
+  id            String    @id @default(uuid())
+  idOrganizacao String    @map("id_organizacao")
+  idPedido      String    @map("id_pedido")
+  numero        String
+  titulo        String
+  modalidade    String
+  prazoRespostas DateTime @map("prazo_respostas")
+  sigilo        Boolean   @default(true)
+  status        String    @default("Aberta")
+  criadoPor     String    @map("criado_por")
+  criadoEm     DateTime  @default(now()) @map("criado_em")
+  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+
+  organizacao Organizacao      @relation(fields: [idOrganizacao], references: [id])
+  itens       ItemCotacao[]
+  convites    ConviteCotacao[]
+
+  @@unique([idOrganizacao, numero])
+  @@map("cotacao")
+}
+
+model ItemCotacao {
+  id         String  @id @default(uuid())
+  idCotacao  String  @map("id_cotacao")
+  idItem     String  @map("id_item")
+  quantidade Decimal @db.Decimal(15, 4)
+  unidade    String
+
+  cotacao   Cotacao      @relation(fields: [idCotacao], references: [id])
+  item      ItemCatalogo @relation(fields: [idItem], references: [id])
+  propostas Proposta[]
+
+  @@map("item_cotacao")
+}
+
+model ConviteCotacao {
+  id           String    @id @default(uuid())
+  idCotacao    String    @map("id_cotacao")
+  idFornecedor String    @map("id_fornecedor")
+  token        String    @unique @default(uuid())
+  status       String    @default("Pendente")
+  enviadoEm    DateTime? @map("enviado_em")
+  respondidoEm DateTime? @map("respondido_em")
+
+  cotacao    Cotacao    @relation(fields: [idCotacao], references: [id])
+  fornecedor Fornecedor @relation(fields: [idFornecedor], references: [id])
+  propostas  Proposta[]
+
+  @@unique([idCotacao, idFornecedor])
+  @@map("convite_cotacao")
+}
+
+model Proposta {
+  id           String   @id @default(uuid())
+  idConvite    String   @map("id_convite")
+  idItemCotacao String  @map("id_item_cotacao")
+  precoUnitario Decimal @map("preco_unitario") @db.Decimal(15, 4)
+  subtotal      Decimal @db.Decimal(15, 2)
+  observacao    String?
+  comprovante   String?
+  homologada    Boolean @default(false)
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  convite     ConviteCotacao @relation(fields: [idConvite], references: [id])
+  itemCotacao ItemCotacao    @relation(fields: [idItemCotacao], references: [id])
+
+  @@map("proposta")
+}
+
+// ─────────────────────────────────────────────
+// M6 — Contratos
+// ─────────────────────────────────────────────
+
+model Contrato {
+  id                  String    @id @default(uuid())
+  idOrganizacao       String    @map("id_organizacao")
+  idCotacao           String    @unique @map("id_cotacao")
+  numero              String
+  titulo              String
+  valorTotal          Decimal   @map("valor_total") @db.Decimal(15, 2)
+  dataInicio         DateTime   @map("data_inicio") @db.Date
+  dataFim             DateTime  @map("data_fim") @db.Date
+  idFornecedor        String    @map("id_fornecedor")
+  idFiscal            String?   @map("id_fiscal")
+  status              String    @default("Minuta")
+  urlDocumento        String?   @map("url_documento")
+  assinadoEm          DateTime? @map("assinado_em")
+  criadoPor           String    @map("criado_por")
+  criadoEm            DateTime  @default(now()) @map("criado_em")
+  atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
+  dataEncerramento    DateTime? @map("data_encerramento") @db.Date
+  motivoEncerramento  String?   @map("motivo_encerramento")
+  tipoEncerramento    String?   @map("tipo_encerramento")
+
+  organizacao  Organizacao    @relation(fields: [idOrganizacao], references: [id])
+  fornecedor   Fornecedor     @relation(fields: [idFornecedor], references: [id])
+  fiscal       Usuario?       @relation("ContratoFiscal", fields: [idFiscal], references: [id])
+  criador      Usuario        @relation("ContratoCriador", fields: [criadoPor], references: [id])
+  itens        ItemContrato[]
+  entregas     Entrega[]
+  negociacoes  Negociacao[]
+  licitacoes   Licitacao[]
+  ocorrencias  OcorrenciaContrato[]
+
+  @@unique([idOrganizacao, numero])
+  @@map("contrato")
+}
+
+model ItemContrato {
+  id            String  @id @default(uuid())
+  idContrato    String  @map("id_contrato")
+  idItem        String  @map("id_item")
+  quantidade    Decimal @db.Decimal(15, 4)
+  precoUnitario Decimal @map("preco_unitario") @db.Decimal(15, 4)
+  subtotal      Decimal @db.Decimal(15, 2)
+  unidade       String
+
+  contrato Contrato     @relation(fields: [idContrato], references: [id])
+  item     ItemCatalogo @relation(fields: [idItem], references: [id])
+
+  @@map("item_contrato")
+}
+
+model Entrega {
+  id           String    @id @default(uuid())
+  idContrato   String    @map("id_contrato")
+  numero       Int
+  descricao    String
+  dataEsperada DateTime  @map("data_esperada") @db.Date
+  dataEfetiva  DateTime? @map("data_efetiva") @db.Date
+  status       String    @default("Pendente")
+  observacao   String?
+  confirmadoPor String?  @map("confirmado_por")
+  criadoEm    DateTime  @default(now()) @map("criado_em")
+
+  contrato  Contrato @relation(fields: [idContrato], references: [id])
+  confirma  Usuario? @relation("EntregaConfirmador", fields: [confirmadoPor], references: [id])
+
+  contestadoEm      DateTime? @map("contestado_em")
+  motivoContestacao String?   @map("motivo_contestacao")
+  statusContestacao String?   @map("status_contestacao")
+
+  @@map("entrega")
+}
+
+// ─────────────────────────────────────────────
+// M4 — Negociação
+// ─────────────────────────────────────────────
+
+model Negociacao {
+  id          String   @id @default(uuid())
+  idContrato  String   @map("id_contrato")
+  iniciadorId String   @map("iniciador_id")
+  status      String   @default("Aberta")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  contrato    Contrato          @relation(fields: [idContrato], references: [id])
+  iniciador   Usuario           @relation("NegociacaoIniciador", fields: [iniciadorId], references: [id])
+  mensagens   MensagemNegociacao[]
+
+  @@map("negociacao")
+}
+
+model MensagemNegociacao {
+  id           String   @id @default(uuid())
+  idNegociacao String   @map("id_negociacao")
+  remetente    String
+  conteudo     String
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  negociacao Negociacao @relation(fields: [idNegociacao], references: [id])
+
+  @@map("mensagem_negociacao")
+}
+
+// ─────────────────────────────────────────────
+// M7 — Licitação
+// ─────────────────────────────────────────────
+
+model Licitacao {
+  id                  String    @id @default(uuid())
+  idOrganizacao       String    @map("id_organizacao")
+  idContrato          String    @unique @map("id_contrato")
+  numero              String
+  modalidade          String
+  status              String    @default("Enviada")
+  urlSistemaExterno   String?   @map("url_sistema_externo")
+  dataEnvio           DateTime  @default(now()) @map("data_envio")
+  dataResultado       DateTime? @map("data_resultado")
+  resultado           String?
+  observacao          String?
+  tentativas          Int       @default(1)
+  criadoEm            DateTime  @default(now()) @map("criado_em")
+  atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
+
+  organizacao Organizacao    @relation(fields: [idOrganizacao], references: [id])
+  contrato    Contrato       @relation(fields: [idContrato], references: [id])
+  logs        LogIntegracao[]
+
+  @@unique([idOrganizacao, numero])
+  @@map("licitacao")
+}
+
+model LogIntegracao {
+  id           String   @id @default(uuid())
+  idLicitacao  String   @map("id_licitacao")
+  tentativa    Int
+  status       String
+  payload      Json?
+  resposta     Json?
+  erro         String?
+  criadoEm     DateTime @default(now()) @map("criado_em")
+
+  licitacao Licitacao @relation(fields: [idLicitacao], references: [id])
+
+  @@map("log_integracao")
+}
+
+// ─────────────────────────────────────────────
+// M6 — Ocorrências e Penalidades
+// ─────────────────────────────────────────────
+
+model OcorrenciaContrato {
+  id           String   @id @default(uuid())
+  idContrato   String   @map("id_contrato")
+  tipo         String
+  descricao    String
+  dataOcorrencia DateTime @map("data_ocorrencia") @db.Date
+  registradoPor String  @map("registrado_por")
+  status       String   @default("Aberta")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  contrato    Contrato           @relation(fields: [idContrato], references: [id])
+  registrador Usuario            @relation("OcorrenciaRegistrador", fields: [registradoPor], references: [id])
+  penalidades PenalidadeContrato[]
+
+  @@map("ocorrencia_contrato")
+}
+
+model PenalidadeContrato {
+  id             String   @id @default(uuid())
+  idOcorrencia   String   @map("id_ocorrencia")
+  tipo           String
+  valor          Decimal? @db.Decimal(15, 2)
+  descricao      String
+  aplicadoPor    String   @map("aplicado_por")
+  dataAplicacao  DateTime @map("data_aplicacao") @db.Date
+  criadoEm       DateTime @default(now()) @map("criado_em")
+
+  ocorrencia OcorrenciaContrato @relation(fields: [idOcorrencia], references: [id])
+  aplicador  Usuario            @relation("PenalidadeAplicador", fields: [aplicadoPor], references: [id])
+
+  @@map("penalidade_contrato")
+}
+
+// ─────────────────────────────────────────────
+// MT — Monitoramento & Alertas
+// ─────────────────────────────────────────────
+
+model AlertaSancao {
+  id            String   @id @default(uuid())
+  idOrganizacao String   @map("id_organizacao")
+  idFornecedor  String   @map("id_fornecedor")
+  tipo          String
+  descricao     String
+  fonte         String
+  dataDeteccao  DateTime @default(now()) @map("data_deteccao")
+  status        String   @default("Ativo")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
+  fornecedor  Fornecedor  @relation(fields: [idFornecedor], references: [id])
+
+  @@map("alerta_sancao")
+}
+
+model LogFracionamento {
+  id            String   @id @default(uuid())
+  idOrganizacao String   @map("id_organizacao")
+  idSolicitante String   @map("id_solicitante")
+  valorTotal    Decimal  @map("valor_total") @db.Decimal(15, 2)
+  quantidadePedidos Int  @map("quantidade_pedidos")
+  pedidosIds    Json     @map("pedidos_ids")
+  nivelRisco    String   @map("nivel_risco")
+  descricao     String
+  status        String   @default("Aberto")
+  criadoEm      DateTime @default(now()) @map("criado_em")
+
+  organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
+  solicitante Usuario     @relation("FracionamentoSolicitante", fields: [idSolicitante], references: [id])
+
+  @@map("log_fracionamento")
+}
+
+// ─────────────────────────────────────────────
+// Motor de Hierarquia Genérico
+// ─────────────────────────────────────────────
+
+model EstruturaHierarquia {
+  id            String    @id @default(uuid())
+  idOrganizacao String    @map("id_organizacao")
+  tabela        String
+  nome          String
+  mascara       String
+  dataInicio    DateTime  @map("data_inicio") @db.Date
+  dataFim       DateTime? @map("data_fim") @db.Date
+  status        String    @default("Inativa")
+  criadoPor     String    @map("criado_por")
+  criadoEm      DateTime  @default(now()) @map("criado_em")
+  atualizadoEm  DateTime  @updatedAt @map("atualizado_em")
+
+  organizacao  Organizacao  @relation(fields: [idOrganizacao], references: [id])
+  criador      Usuario      @relation(fields: [criadoPor], references: [id])
+  categorias   Categoria[]
+
+  @@map("estrutura_hierarquia")
+}
+
+model ItemCategoria {
+  id          String   @id @default(uuid())
+  idItem      String   @map("id_item")
+  idCategoria String   @map("id_categoria")
+  ativo       Boolean  @default(true)
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  item      ItemCatalogo @relation(fields: [idItem], references: [id])
+  categoria Categoria    @relation(fields: [idCategoria], references: [id])
+
+  @@map("item_categoria")
 }
