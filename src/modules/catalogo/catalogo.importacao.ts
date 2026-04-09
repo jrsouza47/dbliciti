@@ -1,6 +1,8 @@
 import { read, utils } from 'xlsx'
 import prisma from '../../shared/prisma'
 
+// Domínio: tipo 1=Material, 2=Servico | status 1=Rascunho
+
 interface LinhaImportacao {
   nome?: string
   descricaoTecnica?: string
@@ -73,12 +75,15 @@ export async function processarImportacao(
       continue
     }
 
-    const tiposValidos = ['Produto', 'Serviço']
-    if (!tiposValidos.includes(String(linha.tipo).trim())) {
+    const tipoStr = String(linha.tipo).trim()
+    const tiposValidos = ['Material', 'Servico']
+    if (!tiposValidos.includes(tipoStr)) {
       erros++
-      relatorio.push({ linha: numeroLinha, status: 'erro', nome: linha.nome, motivo: `Tipo "${linha.tipo}" inválido. Use: Produto ou Serviço` })
+      relatorio.push({ linha: numeroLinha, status: 'erro', nome: linha.nome, motivo: `Tipo "${linha.tipo}" inválido. Use: Material ou Servico` })
       continue
     }
+
+    const tipoInt = tipoStr === 'Material' ? 1 : 2
 
     try {
       const total = await prisma.itemCatalogo.count({ where: { idOrganizacao } })
@@ -93,9 +98,9 @@ export async function processarImportacao(
           descricaoTecnica: linha.descricaoTecnica ? String(linha.descricaoTecnica).trim() : '',
           idCategoria: String(linha.idCategoria).trim(),
           unidadeMedida: String(linha.unidadeMedida).trim(),
-          tipo: String(linha.tipo).trim(),
+          tipo: tipoInt,
           codigoCatmatCatser: linha.codigoCatmatCatser ? String(linha.codigoCatmatCatser).trim() : null,
-          status: 'Rascunho',
+          status: 1, // Rascunho
         }
       })
 

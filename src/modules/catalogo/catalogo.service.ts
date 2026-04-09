@@ -1,8 +1,10 @@
 import prisma from '../../shared/prisma'
 
+// Domínio: tipo 1=Material, 2=Servico | status 1=Rascunho, 2=Ativo, 3=Reprovado, 4=Inativo
+
 export async function listarItens(organizacaoId: string) {
   return prisma.itemCatalogo.findMany({
-    where: { idOrganizacao: organizacaoId, status: 'Ativo' },
+    where: { idOrganizacao: organizacaoId, status: 2 }, // 2 = Ativo
     orderBy: { criadoEm: 'desc' }
   })
 }
@@ -32,14 +34,22 @@ export async function criarItem(dados: {
   })
 
   const seq = String(total + 1).padStart(6, '0')
-  const tipo = dados.tipo === 'MATERIAL' ? 'MAT' : 'SRV'
-  const codigoInterno = `CAT-${tipo}-${seq}`
+  const tipoPrefix = dados.tipo === 'Material' ? 'MAT' : 'SRV'
+  const codigoInterno = `CAT-${tipoPrefix}-${seq}`
+  const tipoInt = dados.tipo === 'Material' ? 1 : 2
 
   return prisma.itemCatalogo.create({
     data: {
-      ...dados,
+      idOrganizacao: dados.idOrganizacao,
+      nome: dados.nome,
+      descricaoTecnica: dados.descricaoTecnica,
+      tipo: tipoInt,
+      unidadeMedida: dados.unidadeMedida,
+      criadoPor: dados.criadoPor,
+      idCategoria: dados.idCategoria,
+      codigoCatmatCatser: dados.codigoCatmatCatser,
       codigoInterno,
-      status: 'Rascunho'
+      status: 1 // Rascunho
     }
   })
 }
@@ -51,9 +61,14 @@ export async function atualizarStatusItem(
   usuarioId: string,
   justificativa?: string
 ) {
+  const statusMap: Record<string, number> = {
+    'Rascunho': 1, 'Ativo': 2, 'Reprovado': 3, 'Inativo': 4
+  }
+  const statusInt = statusMap[status] ?? 1
+
   const item = await prisma.itemCatalogo.update({
     where: { id },
-    data: { status }
+    data: { status: statusInt }
   })
 
   await prisma.auditoriaItem.create({
@@ -61,7 +76,7 @@ export async function atualizarStatusItem(
       idItem: id,
       acao: status.toLowerCase().replace(' ', '_'),
       campo: 'status',
-      valorDepois: status,
+      valorDepois: String(statusInt),
       usuarioId
     }
   })

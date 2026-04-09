@@ -1,9 +1,12 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../../shared/prisma'
 
+// Domínio licitacao.status: 1=Enviada, 2=Aguardando, 3=Concluida, 4=Erro
+// Domínio contrato.status:  1=Minuta, 2=Vigente, 3=Encerrado
+
 export async function licitacaoRoutes(app: FastifyInstance) {
 
-  // POST /licitacoes — Enviar contrato para licitação (M7-01)
+  // POST /licitacoes
   app.post('/licitacoes', async (request, reply) => {
     const { idOrganizacao, idContrato, modalidade, urlSistemaExterno, observacao } = request.body as {
       idOrganizacao: string
@@ -13,20 +16,12 @@ export async function licitacaoRoutes(app: FastifyInstance) {
       observacao?: string
     }
 
-    // Valida se contrato existe e está assinado
-    const contrato = await prisma.contrato.findUnique({
-      where: { id: idContrato }
-    })
-
-    if (!contrato) {
-      return reply.status(404).send({ erro: 'Contrato não encontrado.' })
+    const contrato = await prisma.contrato.findUnique({ where: { id: idContrato } })
+    if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
+    if (contrato.status !== 2) { // 2 = Vigente
+      return reply.status(422).send({ erro: 'Apenas contratos vigentes podem ser enviados para licitação.' })
     }
 
-    if (contrato.status !== 'Assinado') {
-      return reply.status(422).send({ erro: 'Apenas contratos com status Assinado podem ser enviados para licitação.' })
-    }
-
-    // Gera número sequencial
     const total = await prisma.licitacao.count({ where: { idOrganizacao } })
     const numero = `LIC-${String(total + 1).padStart(5, '0')}`
 
@@ -38,7 +33,7 @@ export async function licitacaoRoutes(app: FastifyInstance) {
         modalidade,
         urlSistemaExterno,
         observacao,
-        status: 'Enviada',
+        status: 1, // Enviada
         tentativas: 1,
         logs: {
           create: {
@@ -54,7 +49,7 @@ export async function licitacaoRoutes(app: FastifyInstance) {
     return reply.status(201).send(licitacao)
   })
 
-  // GET /licitacoes/organizacao/:idOrganizacao — Listar licitações
+  // GET /licitacoes/organizacao/:idOrganizacao
   app.get('/licitacoes/organizacao/:idOrganizacao', async (request, reply) => {
     const { idOrganizacao } = request.params as { idOrganizacao: string }
 
@@ -69,7 +64,7 @@ export async function licitacaoRoutes(app: FastifyInstance) {
     return reply.send(licitacoes)
   })
 
-  // GET /licitacoes/:id — Buscar licitação
+  // GET /licitacoes/:id
   app.get('/licitacoes/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
 
@@ -81,28 +76,24 @@ export async function licitacaoRoutes(app: FastifyInstance) {
       }
     })
 
-    if (!licitacao) {
-      return reply.status(404).send({ erro: 'Licitação não encontrada.' })
-    }
+    if (!licitacao) return reply.status(404).send({ erro: 'Licitação não encontrada.' })
 
     return reply.send(licitacao)
   })
 
-  // PATCH /licitacoes/:id/resultado — Registrar resultado (M7-02)
+  // PATCH /licitacoes/:id/resultado
   app.patch('/licitacoes/:id/resultado', async (request, reply) => {
     const { id } = request.params as { id: string }
     const { resultado, observacao } = request.body as {
-      resultado: 'Homologada' | 'Deserta' | 'Cancelada'
+      resultado: string
       observacao?: string
     }
 
     const licitacao = await prisma.licitacao.findUnique({ where: { id } })
+    if (!licitacao) return reply.status(404).send({ erro: 'Licitação não encontrada.' })
 
-    if (!licitacao) {
-      return reply.status(404).send({ erro: 'Licitação não encontrada.' })
-    }
-
-    if (licitacao.status !== 'Enviada' && licitacao.status !== 'AguardandoResultado') {
+    const statusPermitidos = [1, 2] // Enviada, Aguardando
+    if (!statusPermitidos.includes(licitacao.status)) {
       return reply.status(422).send({ erro: 'Esta licitação já possui resultado registrado.' })
     }
 
@@ -111,12 +102,12 @@ export async function licitacaoRoutes(app: FastifyInstance) {
       data: {
         resultado,
         observacao,
-        status: 'Concluída',
+        status: 3, // Concluida
         dataResultado: new Date(),
         logs: {
           create: {
             tentativa: licitacao.tentativas,
-            status: 'Concluída',
+            status: 'Concluida',
             resposta: { resultado }
           }
         }
@@ -127,18 +118,15 @@ export async function licitacaoRoutes(app: FastifyInstance) {
     return reply.send(atualizada)
   })
 
-  // POST /licitacoes/:id/reenviar — Reenviar em caso de falha (M7-03)
+  // POST /licitacoes/:id/reenviar
   app.post('/licitacoes/:id/reenviar', async (request, reply) => {
     const { id } = request.params as { id: string }
     const { observacao } = request.body as { observacao?: string }
 
     const licitacao = await prisma.licitacao.findUnique({ where: { id } })
+    if (!licitacao) return reply.status(404).send({ erro: 'Licitação não encontrada.' })
 
-    if (!licitacao) {
-      return reply.status(404).send({ erro: 'Licitação não encontrada.' })
-    }
-
-    if (licitacao.status === 'Concluída') {
+    if (licitacao.status === 3) { // 3 = Concluida
       return reply.status(422).send({ erro: 'Licitação já concluída, não é possível reenviar.' })
     }
 
@@ -148,7 +136,7 @@ export async function licitacaoRoutes(app: FastifyInstance) {
       where: { id },
       data: {
         tentativas: novaTentativa,
-        status: 'Enviada',
+        status: 1, // Enviada
         observacao,
         logs: {
           create: {

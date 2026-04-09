@@ -17,8 +17,10 @@ import { negociacaoRoutes } from './modules/negociacao/negociacao.routes'
 import { licitacaoRoutes } from './modules/licitacao/licitacao.routes'
 import { monitoramentoRoutes } from './modules/monitoramento/monitoramento.routes'
 import { fornecedorHistoricoRoutes } from './modules/fornecedor/routes/fornecedor.historico.routes'
+import { organizacaoRoutes } from './modules/organizacao/organizacao.routes'
+import { assistenteRoutes } from './modules/assistente/assistente.routes'
 
-const app = Fastify({ logger: true })
+const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
 app.register(fastifyCors, { origin: '*' })
 app.register(fastifyMultipart)
@@ -50,6 +52,8 @@ app.register(fornecedorRoutes)
 app.register(licitacaoRoutes)
 app.register(monitoramentoRoutes)
 app.register(fornecedorHistoricoRoutes)
+app.register(organizacaoRoutes)
+app.register(assistenteRoutes)
 
 const start = async () => {
   try {

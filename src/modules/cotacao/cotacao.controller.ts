@@ -11,10 +11,9 @@ export async function criarCotacao(req: FastifyRequest, reply: FastifyReply) {
     prazoRespostas,
     sigilo,
     criadoPor,
-    fornecedores, // array de idFornecedor
+    fornecedores,
   } = req.body as any
 
-  // Busca itens do pedido
   const itensPedido = await prisma.itemPedido.findMany({
     where: { idPedido },
     include: { item: true },
@@ -24,7 +23,6 @@ export async function criarCotacao(req: FastifyRequest, reply: FastifyReply) {
     return reply.status(400).send({ erro: 'Pedido não possui itens.' })
   }
 
-  // Gera número sequencial
   const total = await prisma.cotacao.count({ where: { idOrganizacao } })
   const numero = `COT-${String(total + 1).padStart(5, '0')}`
 
@@ -38,6 +36,7 @@ export async function criarCotacao(req: FastifyRequest, reply: FastifyReply) {
       prazoRespostas: new Date(prazoRespostas),
       sigilo: sigilo ?? true,
       criadoPor,
+      status: 'Aberta' as any,
       itens: {
         create: itensPedido.map((ip) => ({
           idItem: ip.idItem,
@@ -66,13 +65,13 @@ export async function encerrarCotacao(req: FastifyRequest, reply: FastifyReply) 
 
   const cotacao = await prisma.cotacao.findUnique({ where: { id } })
   if (!cotacao) return reply.status(404).send({ erro: 'Cotação não encontrada.' })
-  if (cotacao.status !== 'Aberta') {
+  if (cotacao.status !== 'Aberta' as any) {
     return reply.status(400).send({ erro: `Cotação já está com status "${cotacao.status}".` })
   }
 
   const atualizada = await prisma.cotacao.update({
     where: { id },
-    data: { status: 'Encerrada' },
+    data: { status: 'Encerrada' as any },
   })
 
   return reply.send(atualizada)
@@ -126,7 +125,7 @@ export async function homologarCotacao(req: FastifyRequest, reply: FastifyReply)
 
   const cotacao = await prisma.cotacao.findUnique({ where: { id } })
   if (!cotacao) return reply.status(404).send({ erro: 'Cotação não encontrada.' })
-  if (cotacao.status !== 'Encerrada') {
+  if (cotacao.status !== 'Encerrada' as any) {
     return reply.status(400).send({ erro: 'A cotação precisa estar Encerrada para ser homologada.' })
   }
 
@@ -140,7 +139,7 @@ export async function homologarCotacao(req: FastifyRequest, reply: FastifyReply)
 
   const atualizada = await prisma.cotacao.update({
     where: { id },
-    data: { status: 'Homologada' },
+    data: { status: 'Homologada' as any },
   })
 
   return reply.send({ mensagem: 'Cotação homologada com sucesso.', cotacao: atualizada })
@@ -156,7 +155,7 @@ export async function desertarCotacao(req: FastifyRequest, reply: FastifyReply) 
   })
 
   if (!cotacao) return reply.status(404).send({ erro: 'Cotação não encontrada.' })
-  if (cotacao.status !== 'Encerrada') {
+  if (cotacao.status !== 'Encerrada' as any) {
     return reply.status(400).send({ erro: 'A cotação precisa estar Encerrada para ser desertada.' })
   }
 
@@ -167,7 +166,7 @@ export async function desertarCotacao(req: FastifyRequest, reply: FastifyReply) 
 
   const atualizada = await prisma.cotacao.update({
     where: { id },
-    data: { status: 'Deserta' },
+    data: { status: 'Deserta' as any },
   })
 
   return reply.send({ mensagem: 'Cotação declarada deserta.', cotacao: atualizada })

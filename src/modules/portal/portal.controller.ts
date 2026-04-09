@@ -1,14 +1,12 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import prisma from '../../shared/prisma'
+import { parseCnpj, formatarCnpj } from '../../shared/cnpj.utils'
 
 // POST /portal/fornecedores — F1: Auto-cadastro
 export async function autoCadastroFornecedor(req: FastifyRequest, reply: FastifyReply) {
   const { idOrganizacao, cnpj, razaoSocial, nomeFantasia, email, telefone } = req.body as any
 
-  const cnpjLimpo = cnpj.replace(/\D/g, '')
-  if (cnpjLimpo.length !== 14) {
-    return reply.status(400).send({ erro: 'CNPJ inválido. Informe 14 dígitos.' })
-  }
+  const cnpjLimpo = parseCnpj(cnpj)
 
   const existente = await prisma.fornecedor.findUnique({
     where: { idOrganizacao_cnpj: { idOrganizacao, cnpj: cnpjLimpo } },
@@ -18,10 +16,10 @@ export async function autoCadastroFornecedor(req: FastifyRequest, reply: Fastify
   }
 
   const fornecedor = await prisma.fornecedor.create({
-    data: { idOrganizacao, cnpj: cnpjLimpo, razaoSocial, nomeFantasia, email, telefone, status: 'Ativo' },
+    data: { idOrganizacao, cnpj: cnpjLimpo, razaoSocial, nomeFantasia, email, telefone, status: 'Ativo' as any },
   })
 
-  return reply.status(201).send(fornecedor)
+  return reply.status(201).send({ ...fornecedor, cnpj: formatarCnpj(fornecedor.cnpj) })
 }
 
 // GET /portal/cotacoes/:token — F3: Visualizar convite
@@ -37,7 +35,7 @@ export async function visualizarConvite(req: FastifyRequest, reply: FastifyReply
   })
 
   if (!convite) return reply.status(404).send({ erro: 'Convite não encontrado.' })
-  if (convite.cotacao.status !== 'Aberta') {
+  if (convite.cotacao.status !== 'Aberta' as any) {
     return reply.status(400).send({ erro: 'Esta cotação não está mais aberta para propostas.' })
   }
 
@@ -66,10 +64,10 @@ export async function enviarProposta(req: FastifyRequest, reply: FastifyReply) {
   })
 
   if (!convite) return reply.status(404).send({ erro: 'Convite não encontrado.' })
-  if (convite.cotacao.status !== 'Aberta') {
+  if (convite.cotacao.status !== 'Aberta' as any) {
     return reply.status(400).send({ erro: 'Esta cotação não está mais aberta para propostas.' })
   }
-  if (convite.status === 'Respondido') {
+  if (convite.status === 'Respondido' as any) {
     return reply.status(400).send({ erro: 'Você já enviou uma proposta para esta cotação.' })
   }
   if (new Date() > new Date(convite.cotacao.prazoRespostas)) {
@@ -89,7 +87,7 @@ export async function enviarProposta(req: FastifyRequest, reply: FastifyReply) {
 
   await prisma.conviteCotacao.update({
     where: { token },
-    data: { status: 'Respondido', respondidoEm: new Date() },
+    data: { status: 'Respondido' as any, respondidoEm: new Date() },
   })
 
   return reply.status(201).send({ mensagem: 'Proposta enviada com sucesso.', propostas })
@@ -101,10 +99,7 @@ export async function visualizarContratoPortal(req: FastifyRequest, reply: Fasti
 
   const convite = await prisma.conviteCotacao.findUnique({
     where: { token },
-    include: {
-      fornecedor: true,
-      cotacao: true,
-    },
+    include: { fornecedor: true, cotacao: true },
   })
 
   if (!convite) return reply.status(404).send({ erro: 'Token inválido.' })
@@ -149,7 +144,7 @@ export async function aceitarContratoPortal(req: FastifyRequest, reply: FastifyR
   })
 
   if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
-  if (contrato.status !== 'Vigente') return reply.status(422).send({ erro: 'Contrato não está vigente.' })
+  if (contrato.status !== 'Vigente' as any) return reply.status(422).send({ erro: 'Contrato não está vigente.' })
 
   return reply.send({ mensagem: 'Contrato aceito com sucesso.', contrato: { numero: contrato.numero, status: contrato.status } })
 }
@@ -168,16 +163,15 @@ export async function registrarEntregaPortal(req: FastifyRequest, reply: Fastify
   })
 
   if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
-  if (contrato.status !== 'Vigente') return reply.status(422).send({ erro: 'Contrato não está vigente.' })
+  if (contrato.status !== 'Vigente' as any) return reply.status(422).send({ erro: 'Contrato não está vigente.' })
 
-  // Busca a próxima entrega pendente
-  const entregaPendente = contrato.entregas.find((e) => e.status === 'Pendente')
+  const entregaPendente = contrato.entregas.find((e) => e.status === 'Pendente' as any)
   if (!entregaPendente) return reply.status(422).send({ erro: 'Não há entregas pendentes neste contrato.' })
 
   const entrega = await prisma.entrega.update({
     where: { id: entregaPendente.id },
     data: {
-      status: 'Aguardando confirmação',
+      status: 'Pendente' as any,
       dataEfetiva: dataEfetiva ? new Date(dataEfetiva) : new Date(),
       observacao: observacao ?? null,
     },

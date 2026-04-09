@@ -3,7 +3,7 @@ import prisma from '../../shared/prisma'
 
 export async function ocorrenciaRoutes(app: FastifyInstance) {
 
-  // POST /contratos/:id/ocorrencias — Registrar ocorrência
+  // POST /contratos/:id/ocorrencias
   app.post('/contratos/:id/ocorrencias', async (request, reply) => {
     const { id } = request.params as { id: string }
     const { tipo, descricao, dataOcorrencia, registradoPor } = request.body as {
@@ -14,14 +14,8 @@ export async function ocorrenciaRoutes(app: FastifyInstance) {
     }
 
     const contrato = await prisma.contrato.findUnique({ where: { id } })
-
-    if (!contrato) {
-      return reply.status(404).send({ erro: 'Contrato não encontrado.' })
-    }
-
-    if (contrato.status === 'Encerrado') {
-      return reply.status(422).send({ erro: 'Não é possível registrar ocorrência em contrato encerrado.' })
-    }
+    if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
+    if (contrato.status === 'Encerrado' as any) return reply.status(422).send({ erro: 'Não é possível registrar ocorrência em contrato encerrado.' })
 
     const ocorrencia = await prisma.ocorrenciaContrato.create({
       data: {
@@ -30,7 +24,7 @@ export async function ocorrenciaRoutes(app: FastifyInstance) {
         descricao,
         dataOcorrencia: new Date(dataOcorrencia),
         registradoPor,
-        status: 'Aberta'
+        status: 'Aberta' as any
       },
       include: { penalidades: true }
     })
@@ -38,15 +32,12 @@ export async function ocorrenciaRoutes(app: FastifyInstance) {
     return reply.status(201).send(ocorrencia)
   })
 
-  // GET /contratos/:id/ocorrencias — Listar ocorrências do contrato
+  // GET /contratos/:id/ocorrencias
   app.get('/contratos/:id/ocorrencias', async (request, reply) => {
     const { id } = request.params as { id: string }
 
     const contrato = await prisma.contrato.findUnique({ where: { id } })
-
-    if (!contrato) {
-      return reply.status(404).send({ erro: 'Contrato não encontrado.' })
-    }
+    if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
 
     const ocorrencias = await prisma.ocorrenciaContrato.findMany({
       where: { idContrato: id },
@@ -57,7 +48,7 @@ export async function ocorrenciaRoutes(app: FastifyInstance) {
     return reply.send(ocorrencias)
   })
 
-  // POST /ocorrencias/:id/penalidades — Aplicar penalidade
+  // POST /ocorrencias/:id/penalidades
   app.post('/ocorrencias/:id/penalidades', async (request, reply) => {
     const { id } = request.params as { id: string }
     const { tipo, valor, descricao, aplicadoPor, dataAplicacao } = request.body as {
@@ -69,14 +60,8 @@ export async function ocorrenciaRoutes(app: FastifyInstance) {
     }
 
     const ocorrencia = await prisma.ocorrenciaContrato.findUnique({ where: { id } })
-
-    if (!ocorrencia) {
-      return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
-    }
-
-    if (ocorrencia.status === 'Encerrada') {
-      return reply.status(422).send({ erro: 'Não é possível aplicar penalidade em ocorrência encerrada.' })
-    }
+    if (!ocorrencia) return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
+    if (ocorrencia.status === 'Resolvida' as any) return reply.status(422).send({ erro: 'Não é possível aplicar penalidade em ocorrência encerrada.' })
 
     const penalidade = await prisma.penalidadeContrato.create({
       data: {
@@ -92,15 +77,12 @@ export async function ocorrenciaRoutes(app: FastifyInstance) {
     return reply.status(201).send(penalidade)
   })
 
-  // GET /ocorrencias/:id/penalidades — Listar penalidades da ocorrência
+  // GET /ocorrencias/:id/penalidades
   app.get('/ocorrencias/:id/penalidades', async (request, reply) => {
     const { id } = request.params as { id: string }
 
     const ocorrencia = await prisma.ocorrenciaContrato.findUnique({ where: { id } })
-
-    if (!ocorrencia) {
-      return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
-    }
+    if (!ocorrencia) return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
 
     const penalidades = await prisma.penalidadeContrato.findMany({
       where: { idOcorrencia: id },
@@ -110,23 +92,17 @@ export async function ocorrenciaRoutes(app: FastifyInstance) {
     return reply.send(penalidades)
   })
 
-  // PATCH /ocorrencias/:id/encerrar — Encerrar ocorrência
+  // PATCH /ocorrencias/:id/encerrar
   app.patch('/ocorrencias/:id/encerrar', async (request, reply) => {
     const { id } = request.params as { id: string }
 
     const ocorrencia = await prisma.ocorrenciaContrato.findUnique({ where: { id } })
-
-    if (!ocorrencia) {
-      return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
-    }
-
-    if (ocorrencia.status === 'Encerrada') {
-      return reply.status(422).send({ erro: 'Ocorrência já encerrada.' })
-    }
+    if (!ocorrencia) return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
+    if (ocorrencia.status === 'Resolvida' as any) return reply.status(422).send({ erro: 'Ocorrência já encerrada.' })
 
     const atualizada = await prisma.ocorrenciaContrato.update({
       where: { id },
-      data: { status: 'Encerrada' },
+      data: { status: 'Resolvida' as any },
       include: { penalidades: true }
     })
 

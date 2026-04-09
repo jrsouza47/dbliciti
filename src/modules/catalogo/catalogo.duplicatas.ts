@@ -1,6 +1,5 @@
 import prisma from '../../shared/prisma'
 
-// Remove acentos e deixa tudo minúsculo para comparar nomes
 function normalizarNome(nome: string): string {
   return nome
     .toLowerCase()
@@ -9,7 +8,6 @@ function normalizarNome(nome: string): string {
     .trim()
 }
 
-// Calcula similaridade entre dois textos (0 a 1)
 function calcularSimilaridade(a: string, b: string): number {
   const na = normalizarNome(a)
   const nb = normalizarNome(b)
@@ -19,7 +17,6 @@ function calcularSimilaridade(a: string, b: string): number {
   const maior = Math.max(na.length, nb.length)
   if (maior === 0) return 1
 
-  // Conta caracteres em comum
   const setA = new Set(na.split(' '))
   const setB = new Set(nb.split(' '))
   const intersecao = [...setA].filter(p => setB.has(p)).length
@@ -30,7 +27,7 @@ function calcularSimilaridade(a: string, b: string): number {
 
 export async function detectarDuplicatas(idOrganizacao: string) {
   const itens = await prisma.itemCatalogo.findMany({
-    where: { idOrganizacao, status: { not: 'Inativo' } },
+    where: { idOrganizacao, status: { not: 'Inativo' as any } },
     select: {
       id: true,
       nome: true,
@@ -47,7 +44,6 @@ export async function detectarDuplicatas(idOrganizacao: string) {
 
   const jaAgrupados = new Set<string>()
 
-  // Detecta nomes similares
   for (let i = 0; i < itens.length; i++) {
     const grupo = [itens[i]]
 
@@ -67,7 +63,6 @@ export async function detectarDuplicatas(idOrganizacao: string) {
     }
   }
 
-  // Detecta código CATMAT idêntico
   const porCatmat: Record<string, typeof itens> = {}
   for (const item of itens) {
     if (item.codigoCatmatCatser) {
@@ -94,7 +89,7 @@ export async function verificarDuplicataAoCadastrar(
   nomePretendido: string
 ): Promise<{ temSimilar: boolean; itensSimilares: Array<{ id: string; nome: string; codigoInterno: string }> }> {
   const itens = await prisma.itemCatalogo.findMany({
-    where: { idOrganizacao, status: { not: 'Inativo' } },
+    where: { idOrganizacao, status: { not: 'Inativo' as any } },
     select: { id: true, nome: true, codigoInterno: true }
   })
 

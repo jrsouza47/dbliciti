@@ -8,6 +8,10 @@ import {
   CriarAlcadaInput,
 } from './pedido.schema'
 
+// Domínio pedido.status: 1=Rascunho, 2=Submetido, 3=EmAprovacao, 4=Aprovado, 5=Reprovado, 6=Cancelado, 7=Encaminhado
+// Domínio pedido.destinoPos: 1=Cotacao, 2=Licitacao
+// Domínio aprovacao.decisao: 1=Aprovado, 2=Reprovado
+
 function gerarNumeroPedido(): string {
   const ano = new Date().getFullYear()
   const seq = Math.floor(Math.random() * 900000) + 100000
@@ -39,7 +43,7 @@ export async function criarPedido(data: CriarPedidoInput) {
       ...pedidoData,
       numero: gerarNumeroPedido(),
       valorTotal,
-      status: 'Rascunho',
+      status: 1, // Rascunho
       itens: {
         create: itens.map((i: CriarPedidoInput['itens'][0]) => ({
           idItem: i.idItem,
@@ -75,20 +79,21 @@ export async function buscarPedido(id: string) {
 
 export async function submeterPedido(id: string, data: SubmeterPedidoInput) {
   const pedido = await prisma.pedido.findUnique({ where: { id } })
-  if (!pedido) throw new Error('Pedido nao encontrado')
-  if (pedido.status !== 'Rascunho') throw new Error('Apenas pedidos em Rascunho podem ser submetidos')
+  if (!pedido) throw new Error('Pedido não encontrado')
+  if (pedido.status !== 1) // 1 = Rascunho
+    throw new Error('Apenas pedidos em Rascunho podem ser submetidos')
 
   const pedidoAtualizado = await prisma.pedido.update({
     where: { id },
-    data: { status: 'EmAprovacao', nivelAtual: 1 },
+    data: { status: 3, nivelAtual: 1 }, // 3 = EmAprovacao
   })
 
   await prisma.auditoriaPedido.create({
     data: {
       idPedido: id,
       acao: 'Submetido',
-      valorAntes: 'Rascunho',
-      valorDepois: 'EmAprovacao',
+      valorAntes: '1',
+      valorDepois: '3',
       usuarioId: data.idUsuario,
     },
   })
@@ -98,18 +103,19 @@ export async function submeterPedido(id: string, data: SubmeterPedidoInput) {
 
 export async function decidirPedido(id: string, data: DecidirPedidoInput) {
   const pedido = await prisma.pedido.findUnique({ where: { id } })
-  if (!pedido) throw new Error('Pedido nao encontrado')
-  if (pedido.status !== 'EmAprovacao') throw new Error('Pedido nao esta em aprovacao')
+  if (!pedido) throw new Error('Pedido não encontrado')
+  if (pedido.status !== 3) // 3 = EmAprovacao
+    throw new Error('Pedido não está em aprovação')
 
   const alcadas = await prisma.alcadaAprovacao.findMany({
     where: { ativo: true },
     orderBy: { nivel: 'asc' },
   })
 
-  const alcadaAtual = alcadas.find(
-    (a: { nivel: number; id: string }) => a.nivel === pedido.nivelAtual
-  )
-  if (!alcadaAtual) throw new Error('Alcada nao encontrada para o nivel atual')
+  const alcadaAtual = alcadas.find(a => a.nivel === pedido.nivelAtual)
+  if (!alcadaAtual) throw new Error('Alçada não encontrada para o nível atual')
+
+  const decisaoInt = data.decisao === 'Aprovado' ? 1 : 2
 
   await prisma.aprovacaoPedido.create({
     data: {
@@ -117,7 +123,7 @@ export async function decidirPedido(id: string, data: DecidirPedidoInput) {
       idAlcada: alcadaAtual.id,
       idAprovador: data.idAprovador,
       nivel: pedido.nivelAtual,
-      decisao: data.decisao,
+      decisao: decisaoInt,
       justificativa: data.justificativa,
     },
   })
@@ -125,16 +131,14 @@ export async function decidirPedido(id: string, data: DecidirPedidoInput) {
   let novoStatus = pedido.status
   let novoNivel = pedido.nivelAtual
 
-  if (data.decisao === 'Reprovado') {
-    novoStatus = 'Reprovado'
+  if (decisaoInt === 2) { // Reprovado
+    novoStatus = 5
   } else {
-    const proximaAlcada = alcadas.find(
-      (a: { nivel: number }) => a.nivel === pedido.nivelAtual + 1
-    )
+    const proximaAlcada = alcadas.find(a => a.nivel === pedido.nivelAtual + 1)
     if (proximaAlcada) {
       novoNivel = pedido.nivelAtual + 1
     } else {
-      novoStatus = 'Aprovado'
+      novoStatus = 4 // Aprovado
     }
   }
 
@@ -148,7 +152,7 @@ export async function decidirPedido(id: string, data: DecidirPedidoInput) {
       idPedido: id,
       acao: data.decisao,
       usuarioId: data.idAprovador,
-      valorDepois: novoStatus,
+      valorDepois: String(novoStatus),
     },
   })
 
@@ -157,19 +161,22 @@ export async function decidirPedido(id: string, data: DecidirPedidoInput) {
 
 export async function encaminharPedido(id: string, data: EncaminharPedidoInput) {
   const pedido = await prisma.pedido.findUnique({ where: { id } })
-  if (!pedido) throw new Error('Pedido nao encontrado')
-  if (pedido.status !== 'Aprovado') throw new Error('Apenas pedidos aprovados podem ser encaminhados')
+  if (!pedido) throw new Error('Pedido não encontrado')
+  if (pedido.status !== 4) // 4 = Aprovado
+    throw new Error('Apenas pedidos aprovados podem ser encaminhados')
+
+  const destinoInt = data.destino === 'Cotacao' ? 1 : 2
 
   const pedidoAtualizado = await prisma.pedido.update({
     where: { id },
-    data: { status: 'Encaminhado', destinoPos: data.destino },
+    data: { status: 7, destinoPos: destinoInt }, // 7 = Encaminhado
   })
 
   await prisma.auditoriaPedido.create({
     data: {
       idPedido: id,
       acao: 'Encaminhado',
-      valorDepois: data.destino,
+      valorDepois: String(destinoInt),
       usuarioId: data.idComprador,
     },
   })
@@ -179,21 +186,23 @@ export async function encaminharPedido(id: string, data: EncaminharPedidoInput) 
 
 export async function cancelarPedido(id: string, data: CancelarPedidoInput) {
   const pedido = await prisma.pedido.findUnique({ where: { id } })
-  if (!pedido) throw new Error('Pedido nao encontrado')
-  if (['Aprovado', 'Encaminhado', 'Cancelado'].includes(pedido.status)) {
-    throw new Error('Pedido nao pode ser cancelado neste status')
+  if (!pedido) throw new Error('Pedido não encontrado')
+
+  const statusBloqueados = [4, 7, 6] // Aprovado, Encaminhado, Cancelado
+  if (statusBloqueados.includes(pedido.status)) {
+    throw new Error('Pedido não pode ser cancelado neste status')
   }
 
   const pedidoAtualizado = await prisma.pedido.update({
     where: { id },
-    data: { status: 'Cancelado' },
+    data: { status: 6 }, // 6 = Cancelado
   })
 
   await prisma.auditoriaPedido.create({
     data: {
       idPedido: id,
       acao: 'Cancelado',
-      valorAntes: pedido.status,
+      valorAntes: String(pedido.status),
       valorDepois: data.motivo,
       usuarioId: data.idUsuario,
       campo: 'motivo',

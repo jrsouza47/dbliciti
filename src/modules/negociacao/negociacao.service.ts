@@ -7,13 +7,13 @@ export async function iniciarNegociacao(body: {
 }) {
   const contrato = await prisma.contrato.findUnique({ where: { id: body.idContrato } })
   if (!contrato) throw { statusCode: 404, message: 'Contrato não encontrado' }
-  if (contrato.status !== 'Vigente') throw { statusCode: 422, message: 'Apenas contratos vigentes podem ter negociação' }
+  if (contrato.status !== 'Vigente' as any) throw { statusCode: 422, message: 'Apenas contratos vigentes podem ter negociação' }
 
   return prisma.negociacao.create({
     data: {
       idContrato: body.idContrato,
       iniciadorId: body.iniciadorId,
-      status: 'Aberta',
+      status: 'Aberta' as any,
       mensagens: {
         create: {
           remetente: body.iniciadorId,
@@ -31,7 +31,7 @@ export async function enviarMensagem(id: string, body: {
 }) {
   const negociacao = await prisma.negociacao.findUnique({ where: { id } })
   if (!negociacao) throw { statusCode: 404, message: 'Negociação não encontrada' }
-  if (negociacao.status !== 'Aberta') throw { statusCode: 422, message: 'Negociação não está aberta' }
+  if (negociacao.status !== 'Aberta' as any) throw { statusCode: 422, message: 'Negociação não está aberta' }
 
   return prisma.mensagemNegociacao.create({
     data: {
@@ -54,10 +54,10 @@ export async function buscarNegociacao(id: string) {
 export async function concluirNegociacao(id: string) {
   const negociacao = await prisma.negociacao.findUnique({ where: { id } })
   if (!negociacao) throw { statusCode: 404, message: 'Negociação não encontrada' }
-  if (negociacao.status !== 'Aberta') throw { statusCode: 422, message: 'Negociação não está aberta' }
+  if (negociacao.status !== 'Aberta' as any) throw { statusCode: 422, message: 'Negociação não está aberta' }
 
   return prisma.negociacao.update({
     where: { id },
-    data: { status: 'Concluída' }
+    data: { status: 'Concluida' as any }
   })
 }

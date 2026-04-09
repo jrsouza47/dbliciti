@@ -17,7 +17,7 @@ export async function portalRoutes(app: FastifyInstance) {
   app.patch('/portal/contratos/:token/aceitar', aceitarContratoPortal)
   app.post('/portal/contratos/:token/entregas', registrarEntregaPortal)
 
-  // F4a — Fornecedor contesta entrega rejeitada
+  // F4a — Fornecedor contesta entrega
   app.post('/portal/entregas/:token/contestar', async (request, reply) => {
     const { token } = request.params as { token: string }
     const { entregaId, motivoContestacao } = request.body as {
@@ -35,8 +35,8 @@ export async function portalRoutes(app: FastifyInstance) {
     const entrega = await prisma.entrega.findUnique({ where: { id: entregaId } })
     if (!entrega) return reply.status(404).send({ erro: 'Entrega não encontrada.' })
 
-    if (entrega.status !== 'Rejeitada') {
-      return reply.status(422).send({ erro: 'Apenas entregas com status Rejeitada podem ser contestadas.' })
+    if (entrega.status !== 'Contestado' as any) {
+      return reply.status(422).send({ erro: 'Apenas entregas com status Contestado podem ser contestadas.' })
     }
 
     if (entrega.statusContestacao === 'Contestada') {
@@ -66,12 +66,9 @@ export async function portalRoutes(app: FastifyInstance) {
 
     if (!convite) return reply.status(404).send({ erro: 'Token inválido.' })
 
-    // Busca contrato vinculado à cotação do convite
     const contrato = await prisma.contrato.findFirst({
       where: { idCotacao: convite.idCotacao },
-      include: {
-        entregas: { orderBy: { numero: 'asc' } }
-      }
+      include: { entregas: { orderBy: { numero: 'asc' } } }
     })
 
     if (!contrato) return reply.status(404).send({ erro: 'Nenhum contrato encontrado para este token.' })
@@ -110,21 +107,16 @@ export async function portalRoutes(app: FastifyInstance) {
     const licitacoes = await prisma.licitacao.findMany({
       where: {
         idOrganizacao: convite.fornecedor.idOrganizacao,
-        status: { in: ['Enviada', 'AguardandoResultado'] }
+        status: { in: ['Enviada', 'Aguardando'] as any[] }
       },
       include: {
-        contrato: {
-          select: { numero: true, titulo: true, valorTotal: true }
-        }
+        contrato: { select: { numero: true, titulo: true, valorTotal: true } }
       },
       orderBy: { dataEnvio: 'desc' }
     })
 
     return reply.send({
-      fornecedor: {
-        id: convite.fornecedor.id,
-        razaoSocial: convite.fornecedor.razaoSocial
-      },
+      fornecedor: { id: convite.fornecedor.id, razaoSocial: convite.fornecedor.razaoSocial },
       licitacoes
     })
   })

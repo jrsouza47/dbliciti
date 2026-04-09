@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import prisma from '../../../shared/prisma'
+import { formatarCnpj } from '../../../shared/cnpj.utils'
 import PDFDocument from 'pdfkit'
 
 export async function fornecedorHistoricoRoutes(app: FastifyInstance) {
@@ -13,21 +14,23 @@ export async function fornecedorHistoricoRoutes(app: FastifyInstance) {
       include: {
         qualificacoes: {
           where: { ativo: true },
-          include: { categoria: { select: { nome: true } } }
+          include: { categoria: { select: { nome: true } } },
         },
         documentos: { orderBy: { criadoEm: 'desc' } },
         contratos: {
           orderBy: { criadoEm: 'desc' },
           include: {
             entregas: { select: { descricao: true, status: true, dataEsperada: true, dataEfetiva: true } },
-            ocorrencias: { select: { tipo: true, descricao: true, dataOcorrencia: true, status: true } }
-          }
+            ocorrencias: { select: { tipo: true, descricao: true, dataOcorrencia: true, status: true } },
+          },
         },
-        alertasSancao: { orderBy: { dataDeteccao: 'desc' } }
-      }
+        alertasSancao: { orderBy: { dataDeteccao: 'desc' } },
+      },
     })
 
     if (!fornecedor) return reply.status(404).send({ erro: 'Fornecedor não encontrado.' })
+
+    const cnpjFormatado = formatarCnpj(fornecedor.cnpj)
 
     const doc = new PDFDocument({ margin: 50 })
     const chunks: Buffer[] = []
@@ -50,7 +53,7 @@ export async function fornecedorHistoricoRoutes(app: FastifyInstance) {
     doc.fontSize(10).fillColor(corTexto)
     doc.text(`Razão Social: ${fornecedor.razaoSocial}`)
     doc.text(`Nome Fantasia: ${fornecedor.nomeFantasia ?? '—'}`)
-    doc.text(`CNPJ: ${fornecedor.cnpj}`)
+    doc.text(`CNPJ: ${cnpjFormatado}`)
     doc.text(`E-mail: ${fornecedor.email ?? '—'}`)
     doc.text(`Telefone: ${fornecedor.telefone ?? '—'}`)
     doc.text(`Status: ${fornecedor.status}`)
@@ -129,7 +132,7 @@ export async function fornecedorHistoricoRoutes(app: FastifyInstance) {
       })
     }
 
-// ── Finaliza e envia ──
+    // ── Finaliza e envia ──
     await new Promise<void>((resolve) => {
       doc.on('end', resolve)
       doc.end()
@@ -138,7 +141,7 @@ export async function fornecedorHistoricoRoutes(app: FastifyInstance) {
     const pdfBuffer = Buffer.concat(chunks)
 
     reply.header('Content-Type', 'application/pdf')
-    reply.header('Content-Disposition', `attachment; filename=historico-${fornecedor.cnpj}.pdf`)
+    reply.header('Content-Disposition', `attachment; filename=historico-${cnpjFormatado.replace(/\D/g, '')}.pdf`)
     return reply.send(pdfBuffer)
   })
 }

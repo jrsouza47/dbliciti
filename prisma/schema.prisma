@@ -8,11 +8,67 @@ datasource db {
   directUrl  = env("DIRECT_URL")
 }
 
+// ─────────────────────────────────────────────
+// Tabelas de Domínio
+// ─────────────────────────────────────────────
+
+model DominioTabela {
+  id        Int      @id @default(autoincrement())
+  nome      String   @unique
+  descricao String
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  campos DominioField[]
+  enums  DominioEnum[]
+
+  @@map("dominio_tabela")
+}
+
+model DominioField {
+  id          Int      @id @default(autoincrement())
+  idTabela    Int      @map("id_tabela")
+  nome        String
+  descricao   String
+  tipo        String
+  obrigatorio Boolean  @default(true)
+  temEnum     Boolean  @default(false) @map("tem_enum")
+  ativo       Boolean  @default(true)
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  tabela DominioTabela @relation(fields: [idTabela], references: [id])
+  enums  DominioEnum[]
+
+  @@unique([idTabela, nome])
+  @@map("dominio_campo")
+}
+
+model DominioEnum {
+  id        Int      @id @default(autoincrement())
+  idTabela  Int      @map("id_tabela")
+  idCampo   Int      @map("id_campo")
+  codigo    Int
+  descricao String
+  ordem     Int      @default(0)
+  ativo     Boolean  @default(true)
+  criadoEm  DateTime @default(now()) @map("criado_em")
+
+  tabela DominioTabela @relation(fields: [idTabela], references: [id])
+  campo  DominioField  @relation(fields: [idCampo], references: [id])
+
+  @@unique([idCampo, codigo])
+  @@map("dominio_enum")
+}
+
+// ─────────────────────────────────────────────
+// Base
+// ─────────────────────────────────────────────
+
 model Organizacao {
   id             String   @id @default(uuid())
   nome           String
   cnpj           String?
-  modelo         String
+  modelo         Int      @default(1)
   ativo          Boolean  @default(true)
   configuracoes  Json?    @map("configuracoes")
   criadoEm       DateTime @default(now()) @map("criado_em")
@@ -105,17 +161,21 @@ model Categoria {
   @@map("categoria")
 }
 
+// ─────────────────────────────────────────────
+// M1 — Catálogo
+// ─────────────────────────────────────────────
+
 model ItemCatalogo {
   id                 String   @id @default(uuid())
   idOrganizacao      String   @map("id_organizacao")
   codigoInterno      String   @map("codigo_interno")
   nome               String
   descricaoTecnica   String   @map("descricao_tecnica")
-  tipo               String
+  tipo               Int      @default(1)
   unidadeMedida      String   @map("unidade_medida")
   idCategoria        String?  @map("id_categoria")
   codigoCatmatCatser String?  @map("codigo_catmat_catser")
-  status             String   @default("Rascunho")
+  status             Int      @default(1)
   sigilo             Boolean  @default(false)
   usoUnico           Boolean  @default(false) @map("uso_unico")
   idItemSucessor     String?  @map("id_item_sucessor")
@@ -198,9 +258,9 @@ model Pedido {
   idCentroCusto String   @map("id_centro_custo")
   justificativa String
   valorTotal    Decimal  @default(0) @map("valor_total") @db.Decimal(15, 2)
-  status        String   @default("Rascunho")
+  status        Int      @default(1)
   nivelAtual    Int      @default(0) @map("nivel_atual")
-  destinoPos    String?  @map("destino_pos")
+  destinoPos    Int?     @map("destino_pos")
   criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
@@ -236,7 +296,7 @@ model AprovacaoPedido {
   idAlcada      String   @map("id_alcada")
   idAprovador   String   @map("id_aprovador")
   nivel         Int
-  decisao       String
+  decisao       Int
   justificativa String?
   criadoEm     DateTime @default(now()) @map("criado_em")
 
@@ -275,7 +335,7 @@ model Fornecedor {
   nomeFantasia   String?  @map("nome_fantasia")
   email          String?
   telefone       String?
-  status         String   @default("Ativo")
+  status         Int      @default(1)
   motivoBloqueio String?  @map("motivo_bloqueio")
   criadoEm      DateTime @default(now()) @map("criado_em")
   atualizadoEm  DateTime @updatedAt @map("atualizado_em")
@@ -314,7 +374,7 @@ model DocumentoFornecedor {
   dataEmissao    DateTime? @map("data_emissao") @db.Date
   dataVencimento DateTime? @map("data_vencimento") @db.Date
   arquivo        String?
-  status         String    @default("Vigente")
+  status         Int       @default(1)
   criadoEm      DateTime  @default(now()) @map("criado_em")
 
   fornecedor Fornecedor @relation(fields: [idFornecedor], references: [id])
@@ -327,18 +387,18 @@ model DocumentoFornecedor {
 // ─────────────────────────────────────────────
 
 model Cotacao {
-  id            String    @id @default(uuid())
-  idOrganizacao String    @map("id_organizacao")
-  idPedido      String    @map("id_pedido")
+  id            String   @id @default(uuid())
+  idOrganizacao String   @map("id_organizacao")
+  idPedido      String   @map("id_pedido")
   numero        String
   titulo        String
   modalidade    String
   prazoRespostas DateTime @map("prazo_respostas")
-  sigilo        Boolean   @default(true)
-  status        String    @default("Aberta")
-  criadoPor     String    @map("criado_por")
-  criadoEm     DateTime  @default(now()) @map("criado_em")
-  atualizadoEm DateTime  @updatedAt @map("atualizado_em")
+  sigilo        Boolean  @default(true)
+  status        Int      @default(1)
+  criadoPor     String   @map("criado_por")
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   organizacao Organizacao      @relation(fields: [idOrganizacao], references: [id])
   itens       ItemCotacao[]
@@ -367,7 +427,7 @@ model ConviteCotacao {
   idCotacao    String    @map("id_cotacao")
   idFornecedor String    @map("id_fornecedor")
   token        String    @unique @default(uuid())
-  status       String    @default("Pendente")
+  status       Int       @default(1)
   enviadoEm    DateTime? @map("enviado_em")
   respondidoEm DateTime? @map("respondido_em")
 
@@ -380,15 +440,15 @@ model ConviteCotacao {
 }
 
 model Proposta {
-  id           String   @id @default(uuid())
-  idConvite    String   @map("id_convite")
-  idItemCotacao String  @map("id_item_cotacao")
-  precoUnitario Decimal @map("preco_unitario") @db.Decimal(15, 4)
-  subtotal      Decimal @db.Decimal(15, 2)
+  id            String   @id @default(uuid())
+  idConvite     String   @map("id_convite")
+  idItemCotacao String   @map("id_item_cotacao")
+  precoUnitario Decimal  @map("preco_unitario") @db.Decimal(15, 4)
+  subtotal      Decimal  @db.Decimal(15, 2)
   observacao    String?
   comprovante   String?
-  homologada    Boolean @default(false)
-  criadoEm    DateTime @default(now()) @map("criado_em")
+  homologada    Boolean  @default(false)
+  criadoEm    DateTime   @default(now()) @map("criado_em")
 
   convite     ConviteCotacao @relation(fields: [idConvite], references: [id])
   itemCotacao ItemCotacao    @relation(fields: [idItemCotacao], references: [id])
@@ -407,11 +467,11 @@ model Contrato {
   numero              String
   titulo              String
   valorTotal          Decimal   @map("valor_total") @db.Decimal(15, 2)
-  dataInicio         DateTime   @map("data_inicio") @db.Date
+  dataInicio          DateTime  @map("data_inicio") @db.Date
   dataFim             DateTime  @map("data_fim") @db.Date
   idFornecedor        String    @map("id_fornecedor")
   idFiscal            String?   @map("id_fiscal")
-  status              String    @default("Minuta")
+  status              Int       @default(1)
   urlDocumento        String?   @map("url_documento")
   assinadoEm          DateTime? @map("assinado_em")
   criadoPor           String    @map("criado_por")
@@ -421,10 +481,10 @@ model Contrato {
   motivoEncerramento  String?   @map("motivo_encerramento")
   tipoEncerramento    String?   @map("tipo_encerramento")
 
-  organizacao  Organizacao    @relation(fields: [idOrganizacao], references: [id])
-  fornecedor   Fornecedor     @relation(fields: [idFornecedor], references: [id])
-  fiscal       Usuario?       @relation("ContratoFiscal", fields: [idFiscal], references: [id])
-  criador      Usuario        @relation("ContratoCriador", fields: [criadoPor], references: [id])
+  organizacao  Organizacao          @relation(fields: [idOrganizacao], references: [id])
+  fornecedor   Fornecedor           @relation(fields: [idFornecedor], references: [id])
+  fiscal       Usuario?             @relation("ContratoFiscal", fields: [idFiscal], references: [id])
+  criador      Usuario              @relation("ContratoCriador", fields: [criadoPor], references: [id])
   itens        ItemContrato[]
   entregas     Entrega[]
   negociacoes  Negociacao[]
@@ -451,16 +511,16 @@ model ItemContrato {
 }
 
 model Entrega {
-  id           String    @id @default(uuid())
-  idContrato   String    @map("id_contrato")
-  numero       Int
-  descricao    String
-  dataEsperada DateTime  @map("data_esperada") @db.Date
-  dataEfetiva  DateTime? @map("data_efetiva") @db.Date
-  status       String    @default("Pendente")
-  observacao   String?
-  confirmadoPor String?  @map("confirmado_por")
-  criadoEm    DateTime  @default(now()) @map("criado_em")
+  id            String    @id @default(uuid())
+  idContrato    String    @map("id_contrato")
+  numero        Int
+  descricao     String
+  dataEsperada  DateTime  @map("data_esperada") @db.Date
+  dataEfetiva   DateTime? @map("data_efetiva") @db.Date
+  status        Int       @default(1)
+  observacao    String?
+  confirmadoPor String?   @map("confirmado_por")
+  criadoEm      DateTime  @default(now()) @map("criado_em")
 
   contrato  Contrato @relation(fields: [idContrato], references: [id])
   confirma  Usuario? @relation("EntregaConfirmador", fields: [confirmadoPor], references: [id])
@@ -480,11 +540,11 @@ model Negociacao {
   id          String   @id @default(uuid())
   idContrato  String   @map("id_contrato")
   iniciadorId String   @map("iniciador_id")
-  status      String   @default("Aberta")
+  status      Int      @default(1)
   criadoEm   DateTime @default(now()) @map("criado_em")
 
-  contrato    Contrato          @relation(fields: [idContrato], references: [id])
-  iniciador   Usuario           @relation("NegociacaoIniciador", fields: [iniciadorId], references: [id])
+  contrato    Contrato             @relation(fields: [idContrato], references: [id])
+  iniciador   Usuario              @relation("NegociacaoIniciador", fields: [iniciadorId], references: [id])
   mensagens   MensagemNegociacao[]
 
   @@map("negociacao")
@@ -512,7 +572,7 @@ model Licitacao {
   idContrato          String    @unique @map("id_contrato")
   numero              String
   modalidade          String
-  status              String    @default("Enviada")
+  status              Int       @default(1)
   urlSistemaExterno   String?   @map("url_sistema_externo")
   dataEnvio           DateTime  @default(now()) @map("data_envio")
   dataResultado       DateTime? @map("data_resultado")
@@ -522,8 +582,8 @@ model Licitacao {
   criadoEm            DateTime  @default(now()) @map("criado_em")
   atualizadoEm        DateTime  @updatedAt @map("atualizado_em")
 
-  organizacao Organizacao    @relation(fields: [idOrganizacao], references: [id])
-  contrato    Contrato       @relation(fields: [idContrato], references: [id])
+  organizacao Organizacao     @relation(fields: [idOrganizacao], references: [id])
+  contrato    Contrato        @relation(fields: [idContrato], references: [id])
   logs        LogIntegracao[]
 
   @@unique([idOrganizacao, numero])
@@ -550,18 +610,18 @@ model LogIntegracao {
 // ─────────────────────────────────────────────
 
 model OcorrenciaContrato {
-  id           String   @id @default(uuid())
-  idContrato   String   @map("id_contrato")
-  tipo         String
-  descricao    String
+  id             String   @id @default(uuid())
+  idContrato     String   @map("id_contrato")
+  tipo           String
+  descricao      String
   dataOcorrencia DateTime @map("data_ocorrencia") @db.Date
-  registradoPor String  @map("registrado_por")
-  status       String   @default("Aberta")
-  criadoEm     DateTime @default(now()) @map("criado_em")
-  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+  registradoPor  String   @map("registrado_por")
+  status         Int      @default(1)
+  criadoEm       DateTime @default(now()) @map("criado_em")
+  atualizadoEm   DateTime @updatedAt @map("atualizado_em")
 
-  contrato    Contrato           @relation(fields: [idContrato], references: [id])
-  registrador Usuario            @relation("OcorrenciaRegistrador", fields: [registradoPor], references: [id])
+  contrato    Contrato             @relation(fields: [idContrato], references: [id])
+  registrador Usuario              @relation("OcorrenciaRegistrador", fields: [registradoPor], references: [id])
   penalidades PenalidadeContrato[]
 
   @@map("ocorrencia_contrato")
@@ -595,7 +655,7 @@ model AlertaSancao {
   descricao     String
   fonte         String
   dataDeteccao  DateTime @default(now()) @map("data_deteccao")
-  status        String   @default("Ativo")
+  status        Int      @default(1)
   criadoEm      DateTime @default(now()) @map("criado_em")
 
   organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
@@ -605,16 +665,16 @@ model AlertaSancao {
 }
 
 model LogFracionamento {
-  id            String   @id @default(uuid())
-  idOrganizacao String   @map("id_organizacao")
-  idSolicitante String   @map("id_solicitante")
-  valorTotal    Decimal  @map("valor_total") @db.Decimal(15, 2)
-  quantidadePedidos Int  @map("quantidade_pedidos")
-  pedidosIds    Json     @map("pedidos_ids")
-  nivelRisco    String   @map("nivel_risco")
-  descricao     String
-  status        String   @default("Aberto")
-  criadoEm      DateTime @default(now()) @map("criado_em")
+  id                String   @id @default(uuid())
+  idOrganizacao     String   @map("id_organizacao")
+  idSolicitante     String   @map("id_solicitante")
+  valorTotal        Decimal  @map("valor_total") @db.Decimal(15, 2)
+  quantidadePedidos Int      @map("quantidade_pedidos")
+  pedidosIds        Json     @map("pedidos_ids")
+  nivelRisco        Int      @map("nivel_risco")
+  descricao         String
+  status            Int      @default(1)
+  criadoEm          DateTime @default(now()) @map("criado_em")
 
   organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
   solicitante Usuario     @relation("FracionamentoSolicitante", fields: [idSolicitante], references: [id])
@@ -634,7 +694,7 @@ model EstruturaHierarquia {
   mascara       String
   dataInicio    DateTime  @map("data_inicio") @db.Date
   dataFim       DateTime? @map("data_fim") @db.Date
-  status        String    @default("Inativa")
+  status        Int       @default(2)
   criadoPor     String    @map("criado_por")
   criadoEm      DateTime  @default(now()) @map("criado_em")
   atualizadoEm  DateTime  @updatedAt @map("atualizado_em")

@@ -10,7 +10,6 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
       idSolicitante: string
     }
 
-    // Busca pedidos aprovados do solicitante nos últimos 30 dias
     const trintaDiasAtras = new Date()
     trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30)
 
@@ -18,7 +17,7 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
       where: {
         idOrganizacao,
         idSolicitante,
-        status: { in: ['Aprovado', 'EmCotacao', 'EmLicitacao'] },
+        status: { in: ['Aprovado', 'Encaminhado'] as any[] },
         criadoEm: { gte: trintaDiasAtras }
       },
       orderBy: { criadoEm: 'asc' }
@@ -34,8 +33,6 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
 
     const valorTotal = pedidos.reduce((acc, p) => acc + Number(p.valorTotal), 0)
     const pedidosIds = pedidos.map(p => p.id)
-
-    // Regra: mais de 2 pedidos do mesmo solicitante em 30 dias com valor total > 10000
     const temFracionamento = pedidos.length >= 3 || valorTotal > 10000
 
     if (!temFracionamento) {
@@ -47,7 +44,7 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
       })
     }
 
-    const nivelRisco = valorTotal > 50000 ? 'Alto' : valorTotal > 20000 ? 'Médio' : 'Baixo'
+    const nivelRisco = valorTotal > 50000 ? 'Alto' : valorTotal > 20000 ? 'Medio' : 'Baixo'
 
     const log = await prisma.logFracionamento.create({
       data: {
@@ -56,17 +53,13 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
         valorTotal,
         quantidadePedidos: pedidos.length,
         pedidosIds,
-        nivelRisco,
+        nivelRisco: nivelRisco as any,
         descricao: `${pedidos.length} pedidos totalizando R$ ${valorTotal.toFixed(2)} em 30 dias para o mesmo solicitante.`,
-        status: 'Aberto'
+        status: 'Aberto' as any
       }
     })
 
-    return reply.status(201).send({
-      fracionamentoDetectado: true,
-      nivelRisco,
-      log
-    })
+    return reply.status(201).send({ fracionamentoDetectado: true, nivelRisco, log })
   })
 
   // MT-01 — Listar logs de fracionamento
@@ -75,9 +68,7 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
 
     const logs = await prisma.logFracionamento.findMany({
       where: { idOrganizacao },
-      include: {
-        solicitante: { select: { nome: true, email: true } }
-      },
+      include: { solicitante: { select: { nome: true, email: true } } },
       orderBy: { criadoEm: 'desc' }
     })
 
@@ -104,7 +95,7 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
         tipo,
         descricao,
         fonte,
-        status: 'Ativo'
+        status: 'Ativo' as any
       }
     })
 
@@ -117,9 +108,7 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
 
     const alertas = await prisma.alertaSancao.findMany({
       where: { idOrganizacao },
-      include: {
-        fornecedor: { select: { razaoSocial: true, cnpj: true, status: true } }
-      },
+      include: { fornecedor: { select: { razaoSocial: true, cnpj: true, status: true } } },
       orderBy: { dataDeteccao: 'desc' }
     })
 
@@ -143,15 +132,15 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
       logsFracionamentoAbertos
     ] = await Promise.all([
       prisma.pedido.count({ where: { idOrganizacao } }),
-      prisma.pedido.count({ where: { idOrganizacao, status: { in: ['Rascunho', 'EmAprovacao'] } } }),
+      prisma.pedido.count({ where: { idOrganizacao, status: { in: ['Rascunho', 'EmAprovacao'] as any[] } } }),
       prisma.cotacao.count({ where: { idOrganizacao } }),
-      prisma.cotacao.count({ where: { idOrganizacao, status: 'Aberta' } }),
+      prisma.cotacao.count({ where: { idOrganizacao, status: 'Aberta' as any } }),
       prisma.contrato.count({ where: { idOrganizacao } }),
-      prisma.contrato.count({ where: { idOrganizacao, status: { in: ['Minuta', 'Assinado'] } } }),
+      prisma.contrato.count({ where: { idOrganizacao, status: { in: ['Minuta', 'Vigente'] as any[] } } }),
       prisma.fornecedor.count({ where: { idOrganizacao } }),
-      prisma.fornecedor.count({ where: { idOrganizacao, status: { in: ['Suspenso', 'Bloqueado'] } } }),
-      prisma.alertaSancao.count({ where: { idOrganizacao, status: 'Ativo' } }),
-      prisma.logFracionamento.count({ where: { idOrganizacao, status: 'Aberto' } })
+      prisma.fornecedor.count({ where: { idOrganizacao, status: { in: ['Suspenso', 'Bloqueado'] as any[] } } }),
+      prisma.alertaSancao.count({ where: { idOrganizacao, status: 'Ativo' as any } }),
+      prisma.logFracionamento.count({ where: { idOrganizacao, status: 'Aberto' as any } })
     ])
 
     return reply.send({
@@ -159,13 +148,11 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
       cotacoes: { total: totalCotacoes, abertas: cotacoesAbertas },
       contratos: { total: totalContratos, ativos: contratosAtivos },
       fornecedores: { total: totalFornecedores, bloqueados: fornecedoresBloqueados },
-      alertas: {
-        sancoes: alertasSancaoAtivos,
-        fracionamento: logsFracionamentoAbertos
-      }
+      alertas: { sancoes: alertasSancaoAtivos, fracionamento: logsFracionamentoAbertos }
     })
   })
-  // MT-04 — Dashboard executivo para diretoria
+
+  // MT-04 — Dashboard executivo
   app.get('/dashboard/executivo', async (request, reply) => {
     const { idOrganizacao } = request.query as { idOrganizacao: string }
     if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
@@ -175,59 +162,38 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
     const inicioAno = new Date(agora.getFullYear(), 0, 1)
 
     const [
-      // Pedidos
-      totalPedidosAno,
-      pedidosAprovadosAno,
-      pedidosCanceladosAno,
-      // Cotações
-      totalCotacoesAno,
-      cotacoesHomologadasAno,
-      cotacoesDesertasAno,
-      // Contratos
-      contratosAtivos,
-      contratosVencendo,
-      valorTotalContratos,
-      // Fornecedores
-      totalFornecedoresAtivos,
-      fornecedoresComAlerta,
-      // Ocorrências
-      ocorrenciasAbertas,
-      penalidadesAno,
+      totalPedidosAno, pedidosAprovadosAno, pedidosCanceladosAno,
+      totalCotacoesAno, cotacoesHomologadasAno, cotacoesDesertasAno,
+      contratosAtivos, contratosVencendo, valorTotalContratos,
+      totalFornecedoresAtivos, fornecedoresComAlerta,
+      ocorrenciasAbertas, penalidadesAno,
     ] = await Promise.all([
-      // Pedidos no ano
       prisma.pedido.count({ where: { idOrganizacao, criadoEm: { gte: inicioAno } } }),
-      prisma.pedido.count({ where: { idOrganizacao, status: 'Aprovado', criadoEm: { gte: inicioAno } } }),
-      prisma.pedido.count({ where: { idOrganizacao, status: 'Cancelado', criadoEm: { gte: inicioAno } } }),
-      // Cotações no ano
+      prisma.pedido.count({ where: { idOrganizacao, status: 'Aprovado' as any, criadoEm: { gte: inicioAno } } }),
+      prisma.pedido.count({ where: { idOrganizacao, status: 'Cancelado' as any, criadoEm: { gte: inicioAno } } }),
       prisma.cotacao.count({ where: { idOrganizacao, criadoEm: { gte: inicioAno } } }),
-      prisma.cotacao.count({ where: { idOrganizacao, status: 'Homologada', criadoEm: { gte: inicioAno } } }),
-      prisma.cotacao.count({ where: { idOrganizacao, status: 'Deserta', criadoEm: { gte: inicioAno } } }),
-      // Contratos
-      prisma.contrato.count({ where: { idOrganizacao, status: 'Assinado' } }),
+      prisma.cotacao.count({ where: { idOrganizacao, status: 'Homologada' as any, criadoEm: { gte: inicioAno } } }),
+      prisma.cotacao.count({ where: { idOrganizacao, status: 'Deserta' as any, criadoEm: { gte: inicioAno } } }),
+      prisma.contrato.count({ where: { idOrganizacao, status: 'Vigente' as any } }),
       prisma.contrato.count({
         where: {
           idOrganizacao,
-          status: 'Assinado',
+          status: 'Vigente' as any,
           dataFim: { lte: new Date(agora.getTime() + 30 * 24 * 60 * 60 * 1000) }
         }
       }),
       prisma.contrato.aggregate({
-        where: { idOrganizacao, status: 'Assinado' },
+        where: { idOrganizacao, status: 'Vigente' as any },
         _sum: { valorTotal: true }
       }),
-      // Fornecedores
-      prisma.fornecedor.count({ where: { idOrganizacao, status: 'Ativo' } }),
-      prisma.alertaSancao.count({ where: { idOrganizacao, status: 'Ativo' } }),
-      // Ocorrências
-      prisma.ocorrenciaContrato.count({
-        where: { status: 'Aberta', contrato: { idOrganizacao } }
-      }),
+      prisma.fornecedor.count({ where: { idOrganizacao, status: 'Ativo' as any } }),
+      prisma.alertaSancao.count({ where: { idOrganizacao, status: 'Ativo' as any } }),
+      prisma.ocorrenciaContrato.count({ where: { status: 'Aberta' as any, contrato: { idOrganizacao } } }),
       prisma.penalidadeContrato.count({
         where: { dataAplicacao: { gte: inicioAno }, ocorrencia: { contrato: { idOrganizacao } } }
       }),
     ])
 
-    // Top 5 fornecedores por valor contratado
     const topFornecedores = await prisma.contrato.groupBy({
       by: ['idFornecedor'],
       where: { idOrganizacao },
@@ -253,7 +219,6 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
       }
     })
 
-    // Gastos por mês (últimos 6 meses)
     const seisAtras = new Date()
     seisAtras.setMonth(seisAtras.getMonth() - 5)
     seisAtras.setDate(1)
@@ -275,36 +240,27 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
         totalAno: totalPedidosAno,
         aprovados: pedidosAprovadosAno,
         cancelados: pedidosCanceladosAno,
-        taxaAprovacao: totalPedidosAno > 0
-          ? `${((pedidosAprovadosAno / totalPedidosAno) * 100).toFixed(1)}%`
-          : '0%'
+        taxaAprovacao: totalPedidosAno > 0 ? `${((pedidosAprovadosAno / totalPedidosAno) * 100).toFixed(1)}%` : '0%'
       },
       cotacoes: {
         totalAno: totalCotacoesAno,
         homologadas: cotacoesHomologadasAno,
         desertas: cotacoesDesertasAno,
-        taxaSucesso: totalCotacoesAno > 0
-          ? `${((cotacoesHomologadasAno / totalCotacoesAno) * 100).toFixed(1)}%`
-          : '0%'
+        taxaSucesso: totalCotacoesAno > 0 ? `${((cotacoesHomologadasAno / totalCotacoesAno) * 100).toFixed(1)}%` : '0%'
       },
       contratos: {
         ativos: contratosAtivos,
         vencendoEm30Dias: contratosVencendo,
         valorTotalAtivo: Number(valorTotalContratos._sum.valorTotal ?? 0)
       },
-      fornecedores: {
-        ativos: totalFornecedoresAtivos,
-        comAlertaSancao: fornecedoresComAlerta
-      },
-      conformidade: {
-        ocorrenciasAbertas,
-        penalidadesNoAno: penalidadesAno
-      },
+      fornecedores: { ativos: totalFornecedoresAtivos, comAlertaSancao: fornecedoresComAlerta },
+      conformidade: { ocorrenciasAbertas, penalidadesNoAno: penalidadesAno },
       topFornecedores: ranking,
       gastosPorMes
     })
   })
-  // MT-05 — Sugestão de consolidação de pedidos similares
+
+  // MT-05 — Sugestão de consolidação de pedidos
   app.get('/pedidos/consolidacao', async (request, reply) => {
     const { idOrganizacao } = request.query as { idOrganizacao: string }
     if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
@@ -312,12 +268,11 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
     const trintaDiasAtras = new Date()
     trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30)
 
-    // Busca itens de pedidos aprovados/em cotação nos últimos 30 dias
     const itensPedido = await prisma.itemPedido.findMany({
       where: {
         pedido: {
           idOrganizacao,
-          status: { in: ['Aprovado', 'EmCotacao'] },
+          status: { in: ['Aprovado', 'Encaminhado'] as any[] },
           criadoEm: { gte: trintaDiasAtras }
         }
       },
@@ -331,13 +286,10 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
             solicitante: { select: { nome: true } }
           }
         },
-        item: {
-          select: { id: true, nome: true, unidadeMedida: true }
-        }
+        item: { select: { id: true, nome: true, unidadeMedida: true } }
       }
     })
 
-    // Agrupa por item
     const grupos: Record<string, {
       idItem: string
       nomeItem: string
@@ -380,12 +332,8 @@ export async function monitoramentoRoutes(app: FastifyInstance) {
       })
     }
 
-    // Filtra apenas grupos com 2+ pedidos diferentes (vale consolidar)
     const sugestoes = Object.values(grupos)
-      .filter(g => {
-        const pedidosUnicos = new Set(g.pedidos.map(p => p.idPedido))
-        return pedidosUnicos.size >= 2
-      })
+      .filter(g => new Set(g.pedidos.map(p => p.idPedido)).size >= 2)
       .map(g => ({
         ...g,
         quantidadePedidos: new Set(g.pedidos.map(p => p.idPedido)).size,

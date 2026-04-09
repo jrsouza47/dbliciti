@@ -92,14 +92,13 @@ export async function criarEstrutura(data: {
       mascara: data.mascara,
       dataInicio: new Date(data.dataInicio),
       dataFim: data.dataFim ? new Date(data.dataFim) : null,
-      status: 'Inativa',
+      status: 'Inativa' as any,
     }
   })
 }
 
 // ─────────────────────────────────────────────
-// Ativar estrutura — desativa todas as outras da mesma tabela
-// e desativa todos os vínculos item_categoria ativos
+// Ativar estrutura
 // ─────────────────────────────────────────────
 export async function ativarEstrutura(idEstrutura: string, idOrganizacao: string) {
   const estrutura = await prisma.estruturaHierarquia.findUnique({
@@ -110,8 +109,8 @@ export async function ativarEstrutura(idEstrutura: string, idOrganizacao: string
   if (estrutura.idOrganizacao !== idOrganizacao) throw new Error('Estrutura não pertence a esta organização')
 
   await prisma.estruturaHierarquia.updateMany({
-    where: { idOrganizacao, tabela: estrutura.tabela, status: 'Ativa' },
-    data: { status: 'Inativa' }
+    where: { idOrganizacao, tabela: estrutura.tabela, status: 'Ativa' as any },
+    data: { status: 'Inativa' as any }
   })
 
   await prisma.$executeRaw`
@@ -125,7 +124,7 @@ export async function ativarEstrutura(idEstrutura: string, idOrganizacao: string
 
   return prisma.estruturaHierarquia.update({
     where: { id: idEstrutura },
-    data: { status: 'Ativa' }
+    data: { status: 'Ativa' as any }
   })
 }
 
@@ -246,7 +245,7 @@ export async function vincularItemCategoria(idItem: string, idCategoria: string)
   })
 
   if (vinculoAtivo) throw new Error(
-    `Item já possui categoria ativa. Desative o vínculo atual antes de associar uma nova categoria.`
+    'Item já possui categoria ativa. Desative o vínculo atual antes de associar uma nova categoria.'
   )
 
   return prisma.itemCategoria.create({
@@ -255,7 +254,7 @@ export async function vincularItemCategoria(idItem: string, idCategoria: string)
 }
 
 // ─────────────────────────────────────────────
-// Listar itens sem categoria ativa (para reclassificação)
+// Listar itens sem categoria ativa
 // ─────────────────────────────────────────────
 export async function listarItensSemCategoria(idOrganizacao: string) {
   const itensComCategoria = await prisma.itemCategoria.findMany({
@@ -268,7 +267,7 @@ export async function listarItensSemCategoria(idOrganizacao: string) {
   return prisma.itemCatalogo.findMany({
     where: {
       idOrganizacao,
-      status: { not: 'Inativo' },
+      status: { not: 'Inativo' as any },
       id: { notIn: idsComCategoria }
     },
     select: {

@@ -11,12 +11,12 @@ export async function criarContrato(body: {
     where: { id: body.idCotacao },
     include: {
       itens: { include: { propostas: { where: { homologada: true } } } },
-      convites: { where: { status: 'Respondido' } }
+      convites: { where: { status: 'Respondido' as any } }
     }
   })
 
   if (!cotacao) throw { statusCode: 404, message: 'Cotação não encontrada' }
-  if (cotacao.status !== 'Homologada') throw { statusCode: 422, message: 'Cotação não está homologada' }
+  if (cotacao.status !== 'Homologada' as any) throw { statusCode: 422, message: 'Cotação não está homologada' }
 
   const propostasHomologadas = cotacao.itens.flatMap(i => i.propostas)
   if (propostasHomologadas.length === 0) throw { statusCode: 422, message: 'Nenhuma proposta homologada encontrada' }
@@ -53,7 +53,7 @@ export async function criarContrato(body: {
       dataInicio: new Date(body.dataInicio),
       dataFim: new Date(body.dataFim),
       idFornecedor: conviteVencedor.idFornecedor,
-      status: 'Minuta',
+      status: 'Minuta' as any,
       criadoPor: body.criadoPor,
       itens: {
         create: cotacao.itens.map(ic => {
@@ -99,18 +99,18 @@ export async function buscarContrato(id: string) {
 export async function assinarContrato(id: string) {
   const contrato = await prisma.contrato.findUnique({ where: { id } })
   if (!contrato) throw { statusCode: 404, message: 'Contrato não encontrado' }
-  if (contrato.status !== 'Minuta') throw { statusCode: 422, message: 'Apenas contratos em Minuta podem ser assinados' }
+  if (contrato.status !== 'Minuta' as any) throw { statusCode: 422, message: 'Apenas contratos em Minuta podem ser assinados' }
 
   return prisma.contrato.update({
     where: { id },
-    data: { status: 'Vigente', assinadoEm: new Date() }
+    data: { status: 'Vigente' as any, assinadoEm: new Date() }
   })
 }
 
 export async function designarFiscal(id: string, idFiscal: string) {
   const contrato = await prisma.contrato.findUnique({ where: { id } })
   if (!contrato) throw { statusCode: 404, message: 'Contrato não encontrado' }
-  if (contrato.status !== 'Vigente') throw { statusCode: 422, message: 'Apenas contratos vigentes podem ter fiscal designado' }
+  if (contrato.status !== 'Vigente' as any) throw { statusCode: 422, message: 'Apenas contratos vigentes podem ter fiscal designado' }
 
   const fiscal = await prisma.usuario.findUnique({ where: { id: idFiscal } })
   if (!fiscal) throw { statusCode: 404, message: 'Usuário não encontrado' }
@@ -128,7 +128,7 @@ export async function criarEntrega(idContrato: string, body: {
 }) {
   const contrato = await prisma.contrato.findUnique({ where: { id: idContrato } })
   if (!contrato) throw { statusCode: 404, message: 'Contrato não encontrado' }
-  if (contrato.status !== 'Vigente') throw { statusCode: 422, message: 'Apenas contratos vigentes podem ter entregas registradas' }
+  if (contrato.status !== 'Vigente' as any) throw { statusCode: 422, message: 'Apenas contratos vigentes podem ter entregas registradas' }
 
   const ultima = await prisma.entrega.findFirst({
     where: { idContrato },
@@ -142,7 +142,7 @@ export async function criarEntrega(idContrato: string, body: {
       numero,
       descricao: body.descricao,
       dataEsperada: new Date(body.dataEsperada),
-      status: 'Pendente'
+      status: 'Pendente' as any
     }
   })
 }
@@ -152,12 +152,12 @@ export async function confirmarEntrega(idContrato: string, entregaId: string, co
     where: { id: entregaId, idContrato }
   })
   if (!entrega) throw { statusCode: 404, message: 'Entrega não encontrada' }
-  if (entrega.status === 'Confirmada') throw { statusCode: 422, message: 'Entrega já confirmada' }
+  if (entrega.status === 'Confirmado' as any) throw { statusCode: 422, message: 'Entrega já confirmada' }
 
   return prisma.entrega.update({
     where: { id: entregaId },
     data: {
-      status: 'Confirmada',
+      status: 'Confirmado' as any,
       dataEfetiva: new Date(),
       confirmadoPor
     }

@@ -24,7 +24,7 @@ export async function contratoRoutes(app: FastifyInstance) {
 
   app.register(async function encerramentoRoutes(sub: FastifyInstance) {
 
-    // PATCH /contratos/:id/encerrar — Encerramento normal
+    // PATCH /contratos/:id/encerrar
     sub.patch('/:id/encerrar', async (request, reply) => {
       const { id } = request.params as { id: string }
       const { dataEncerramento, motivoEncerramento } = request.body as {
@@ -34,13 +34,13 @@ export async function contratoRoutes(app: FastifyInstance) {
 
       const contrato = await prisma.contrato.findUnique({ where: { id } })
       if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
-      if (contrato.status === 'Encerrado') return reply.status(422).send({ erro: 'Contrato já encerrado.' })
-      if (contrato.status === 'Rescindido') return reply.status(422).send({ erro: 'Contrato já rescindido.' })
+      if (contrato.status === 'Encerrado' as any) return reply.status(422).send({ erro: 'Contrato já encerrado.' })
+      if (contrato.status === 'Rescindido' as any) return reply.status(422).send({ erro: 'Contrato já rescindido.' })
 
       const atualizado = await prisma.contrato.update({
         where: { id },
         data: {
-          status: 'Encerrado',
+          status: 'Encerrado' as any,
           dataEncerramento: new Date(dataEncerramento),
           motivoEncerramento: motivoEncerramento ?? 'Encerramento por fim de vigência',
           tipoEncerramento: 'Normal'
@@ -50,7 +50,7 @@ export async function contratoRoutes(app: FastifyInstance) {
       return reply.send(atualizado)
     })
 
-    // PATCH /contratos/:id/rescindir — Encerramento antecipado
+    // PATCH /contratos/:id/rescindir
     sub.patch('/:id/rescindir', async (request, reply) => {
       const { id } = request.params as { id: string }
       const { dataEncerramento, motivoEncerramento } = request.body as {
@@ -64,13 +64,13 @@ export async function contratoRoutes(app: FastifyInstance) {
 
       const contrato = await prisma.contrato.findUnique({ where: { id } })
       if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
-      if (contrato.status === 'Encerrado') return reply.status(422).send({ erro: 'Contrato já encerrado.' })
-      if (contrato.status === 'Rescindido') return reply.status(422).send({ erro: 'Contrato já rescindido.' })
+      if (contrato.status === 'Encerrado' as any) return reply.status(422).send({ erro: 'Contrato já encerrado.' })
+      if (contrato.status === 'Rescindido' as any) return reply.status(422).send({ erro: 'Contrato já rescindido.' })
 
       const atualizado = await prisma.contrato.update({
         where: { id },
         data: {
-          status: 'Rescindido',
+          status: 'Rescindido' as any,
           dataEncerramento: new Date(dataEncerramento),
           motivoEncerramento,
           tipoEncerramento: 'Antecipado'
@@ -96,7 +96,7 @@ export async function contratoRoutes(app: FastifyInstance) {
 
       const contrato = await prisma.contrato.findUnique({ where: { id } })
       if (!contrato) return reply.status(404).send({ erro: 'Contrato não encontrado.' })
-      if (contrato.status === 'Encerrado') return reply.status(422).send({ erro: 'Não é possível registrar ocorrência em contrato encerrado.' })
+      if (contrato.status === 'Encerrado' as any) return reply.status(422).send({ erro: 'Não é possível registrar ocorrência em contrato encerrado.' })
 
       const ocorrencia = await prisma.ocorrenciaContrato.create({
         data: {
@@ -105,7 +105,7 @@ export async function contratoRoutes(app: FastifyInstance) {
           descricao,
           dataOcorrencia: new Date(dataOcorrencia),
           registradoPor,
-          status: 'Aberta'
+          status: 'Aberta' as any
         },
         include: { penalidades: true }
       })
@@ -135,11 +135,11 @@ export async function contratoRoutes(app: FastifyInstance) {
 
       const ocorrencia = await prisma.ocorrenciaContrato.findUnique({ where: { id: ocorrenciaId } })
       if (!ocorrencia) return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
-      if (ocorrencia.status === 'Encerrada') return reply.status(422).send({ erro: 'Ocorrência já encerrada.' })
+      if (ocorrencia.status === 'Resolvida' as any) return reply.status(422).send({ erro: 'Ocorrência já encerrada.' })
 
       const atualizada = await prisma.ocorrenciaContrato.update({
         where: { id: ocorrenciaId },
-        data: { status: 'Encerrada' },
+        data: { status: 'Resolvida' as any },
         include: { penalidades: true }
       })
 
@@ -159,7 +159,7 @@ export async function contratoRoutes(app: FastifyInstance) {
 
       const ocorrencia = await prisma.ocorrenciaContrato.findUnique({ where: { id: ocorrenciaId } })
       if (!ocorrencia) return reply.status(404).send({ erro: 'Ocorrência não encontrada.' })
-      if (ocorrencia.status === 'Encerrada') return reply.status(422).send({ erro: 'Não é possível aplicar penalidade em ocorrência encerrada.' })
+      if (ocorrencia.status === 'Resolvida' as any) return reply.status(422).send({ erro: 'Não é possível aplicar penalidade em ocorrência encerrada.' })
 
       const penalidade = await prisma.penalidadeContrato.create({
         data: {
