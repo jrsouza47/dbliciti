@@ -1,48 +1,61 @@
 import { FastifyInstance } from 'fastify'
 import {
-  criarAlcadaSchema,
   criarPedidoSchema,
+  cadastrarPedidoSchema,
   submeterPedidoSchema,
   decidirPedidoSchema,
   encaminharPedidoSchema,
   cancelarPedidoSchema,
+  atualizarPedidoSchema,
 } from '../pedido.schema'
 import {
-  criarAlcada,
-  listarAlcadas,
   criarPedido,
   listarPedidos,
   buscarPedido,
+  cadastrarPedido,
   submeterPedido,
   decidirPedido,
   encaminharPedido,
   cancelarPedido,
+  previewNumeroPedido,
+  atualizarPedido,
+  voltarRascunho,
+  copiarPedido,
 } from '../pedido.service'
+import prisma from '../../../shared/prisma'
 
 export async function pedidoRoutes(app: FastifyInstance) {
-  // M2-06 — Alçadas
-  app.post('/alcadas', async (request, reply) => {
-    const data = criarAlcadaSchema.parse(request.body)
-    const alcada = await criarAlcada(data)
-    return reply.status(201).send(alcada)
+
+  // GET /centros-custo?idOrganizacao=
+  app.get('/centros-custo', async (request, reply) => {
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao obrigatorio' })
+    const centros = await prisma.centroCusto.findMany({
+      where: { idOrganizacao, ativo: true },
+      orderBy: { descricao: 'asc' },
+    })
+    return reply.send(centros)
   })
 
-  app.get('/alcadas/:idOrganizacao', async (request, reply) => {
-    const { idOrganizacao } = request.params as { idOrganizacao: string }
-    return listarAlcadas(idOrganizacao)
-  })
-
-  // M2-01 — Criar pedido
+  // POST /pedidos — Criar pedido (status 1 = Rascunho)
   app.post('/pedidos', async (request, reply) => {
     const data = criarPedidoSchema.parse(request.body)
     const pedido = await criarPedido(data)
     return reply.status(201).send(pedido)
   })
 
-  // GET /pedidos?idOrganizacao=xxx
+  // GET /pedidos/preview-numero?idOrganizacao= — retorna o próximo número sem criar pedido
+  app.get('/pedidos/preview-numero', async (request, reply) => {
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao obrigatorio' })
+    const numero = await previewNumeroPedido(idOrganizacao)
+    return reply.send({ numero })
+  })
+
+  // GET /pedidos?idOrganizacao=
   app.get('/pedidos', async (request, reply) => {
     const { idOrganizacao } = request.query as { idOrganizacao: string }
-    if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao obrigatório' })
+    if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao obrigatorio' })
     return listarPedidos(idOrganizacao)
   })
 
@@ -50,32 +63,61 @@ export async function pedidoRoutes(app: FastifyInstance) {
   app.get('/pedidos/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
     const pedido = await buscarPedido(id)
-    if (!pedido) return reply.status(404).send({ error: 'Pedido não encontrado' })
+    if (!pedido) return reply.status(404).send({ error: 'Pedido nao encontrado' })
     return pedido
   })
 
-  // M2-02 — Submeter
+  // PATCH /pedidos/:id — Atualizar rascunho (status 1)
+  app.patch('/pedidos/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const data = atualizarPedidoSchema.parse(request.body)
+    return atualizarPedido(id, data)
+  })
+
+  // PATCH /pedidos/:id/cadastrar — Rascunho (1) → Cadastrado (2)
+  app.patch('/pedidos/:id/cadastrar', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const data = cadastrarPedidoSchema.parse(request.body)
+    return cadastrarPedido(id, data)
+  })
+
+  // PATCH /pedidos/:id/submeter — Cadastrado (2) → Em Aprovação (3)
   app.patch('/pedidos/:id/submeter', async (request, reply) => {
     const { id } = request.params as { id: string }
     const data = submeterPedidoSchema.parse(request.body)
     return submeterPedido(id, data)
   })
 
-  // M2-03 — Decidir (aprovar/reprovar)
+  // PATCH /pedidos/:id/decidir — Em Aprovação (3) → Aprovado (4) ou Reprovado (5)
   app.patch('/pedidos/:id/decidir', async (request, reply) => {
     const { id } = request.params as { id: string }
     const data = decidirPedidoSchema.parse(request.body)
     return decidirPedido(id, data)
   })
 
-  // M2-04 — Encaminhar
+  // PATCH /pedidos/:id/encaminhar — Aprovado (4) → Encaminhado (7)
   app.patch('/pedidos/:id/encaminhar', async (request, reply) => {
     const { id } = request.params as { id: string }
     const data = encaminharPedidoSchema.parse(request.body)
     return encaminharPedido(id, data)
   })
 
-  // M2-05 — Cancelar
+  // PATCH /pedidos/:id/rascunho — Cadastrado (2) → Rascunho (1)
+  app.patch('/pedidos/:id/rascunho', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idUsuario } = request.body as { idUsuario: string }
+    return voltarRascunho(id, idUsuario)
+  })
+
+  // POST /pedidos/:id/copiar — Clonar pedido
+  app.post('/pedidos/:id/copiar', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idUsuario } = request.body as { idUsuario: string }
+    const novo = await copiarPedido(id, idUsuario)
+    return reply.status(201).send(novo)
+  })
+
+  // PATCH /pedidos/:id/cancelar — (1,2,3) → Cancelado (6)
   app.patch('/pedidos/:id/cancelar', async (request, reply) => {
     const { id } = request.params as { id: string }
     const data = cancelarPedidoSchema.parse(request.body)

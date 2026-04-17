@@ -13,6 +13,8 @@
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "@types/pdfkit": "^0.17.5",
     "ts-node": "^10.9.2",
@@ -24,10 +26,13 @@
     "@fastify/cors": "^11.2.0",
     "@fastify/multipart": "^9.4.0",
     "@prisma/client": "^5.22.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.3.1",
     "fastify": "^5.8.4",
+    "jsonwebtoken": "^9.0.3",
     "pdfkit": "^0.18.0",
     "prisma": "^5.22.0",
+    "twilio": "^5.13.1",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   }

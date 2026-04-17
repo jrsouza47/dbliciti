@@ -65,13 +65,33 @@ model DominioEnum {
 // ─────────────────────────────────────────────
 
 model Organizacao {
-  id             String   @id @default(uuid())
-  nome           String
-  cnpj           String?
-  modelo         Int      @default(1)
-  ativo          Boolean  @default(true)
-  configuracoes  Json?    @map("configuracoes")
-  criadoEm       DateTime @default(now()) @map("criado_em")
+  id                  String    @id @default(uuid())
+  nome                String
+  cnpj                String
+  modelo              Int       @default(1)
+  ativo               Boolean   @default(true)
+  configuracoes       Json?     @map("configuracoes")
+  criadoEm            DateTime  @default(now()) @map("criado_em")
+
+  // Dados da Receita Federal
+  razaoSocial         String?   @map("razao_social")
+  nomeFantasia        String?   @map("nome_fantasia")
+  situacaoCadastral   String?   @map("situacao_cadastral")
+  naturezaJuridica    String?   @map("natureza_juridica")
+  dataAbertura        String?   @map("data_abertura")
+  cnaePrincipal       String?   @map("cnae_principal")
+  descricaoCnae       String?   @map("descricao_cnae")
+  logradouro          String?
+  numero              String?
+  complemento         String?
+  bairro              String?
+  municipio           String?
+  uf                  String?
+  cep                 String?
+  telefone            String?
+  email               String?
+  porte               String?
+  capitalSocial       Decimal?  @map("capital_social") @db.Decimal(15, 2)
 
   usuarios              Usuario[]
   centrosCusto          CentroCusto[]
@@ -95,6 +115,7 @@ model Usuario {
   idOrganizacao String   @map("id_organizacao")
   nome          String
   email         String   @unique
+  senhaHash     String?  @map("senha_hash")
   perfil        String
   alcadaValor   Decimal? @map("alcada_valor") @db.Decimal(15, 2)
   idSubstituto  String?  @map("id_substituto")
@@ -118,6 +139,7 @@ model Usuario {
   penalidadesAplicadas        PenalidadeContrato[]    @relation("PenalidadeAplicador")
   fracionamentosDetectados    LogFracionamento[]      @relation("FracionamentoSolicitante")
   estruturasCriadas           EstruturaHierarquia[]
+  alcadas                     AlcadaUsuario[]         @relation("AlcadaUsuario")
 
   @@map("usuario")
 }
@@ -236,18 +258,38 @@ model AuditoriaItem {
 // ─────────────────────────────────────────────
 
 model AlcadaAprovacao {
-  id            String   @id @default(uuid())
-  idOrganizacao String   @map("id_organizacao")
-  perfil        String
-  valorMinimo   Decimal  @map("valor_minimo") @db.Decimal(15, 2)
-  valorMaximo   Decimal? @map("valor_maximo") @db.Decimal(15, 2)
-  nivel         Int
-  ativo         Boolean  @default(true)
+  id                String    @id @default(uuid())
+  idOrganizacao     String    @map("id_organizacao")
+  nome              String
+  tipo              Int       @default(1) // 1=Pedido Compra 2=Cotacao 3=Contrato 4=Licitacao
+  urgente           Boolean   @default(false)
+  criticidadePadrao Int       @default(1) @map("criticidade_padrao") // 1=Normal 2=Alta 3=Maxima
+  alcada            Boolean   @default(false) // Somente uma por org pode ser true
+  dataInicio        DateTime? @map("data_inicio")
+  dataFim           DateTime? @map("data_fim")
+  ativo             Boolean   @default(true)
+  criadoEm          DateTime  @default(now()) @map("criado_em")
+  atualizadoEm      DateTime  @updatedAt @map("atualizado_em")
 
   organizacao Organizacao       @relation(fields: [idOrganizacao], references: [id])
+  usuarios    AlcadaUsuario[]
   aprovacoes  AprovacaoPedido[]
+  pedidos     Pedido[]
 
   @@map("alcada_aprovacao")
+}
+
+model AlcadaUsuario {
+  id       String   @id @default(uuid())
+  idAlcada String   @map("id_alcada")
+  idUsuario String  @map("id_usuario")
+  status   Int      @default(1) // 1=Ativo 2=Bloqueado
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  alcada  AlcadaAprovacao @relation(fields: [idAlcada], references: [id])
+  usuario Usuario         @relation("AlcadaUsuario", fields: [idUsuario], references: [id])
+
+  @@map("alcada_usuario")
 }
 
 model Pedido {
@@ -255,7 +297,9 @@ model Pedido {
   idOrganizacao String   @map("id_organizacao")
   numero        String
   idSolicitante String   @map("id_solicitante")
-  idCentroCusto String   @map("id_centro_custo")
+  idCentroCusto String?  @map("id_centro_custo")
+  idAlcada      String?  @map("id_alcada")
+  criticidade   Int      @default(1) // 1=Normal 2=Alta 3=Maxima
   justificativa String
   valorTotal    Decimal  @default(0) @map("valor_total") @db.Decimal(15, 2)
   status        Int      @default(1)
@@ -266,7 +310,8 @@ model Pedido {
 
   organizacao Organizacao       @relation(fields: [idOrganizacao], references: [id])
   solicitante Usuario           @relation("PedidoSolicitante", fields: [idSolicitante], references: [id])
-  centroCusto CentroCusto       @relation(fields: [idCentroCusto], references: [id])
+  centroCusto CentroCusto?      @relation(fields: [idCentroCusto], references: [id])
+  alcada      AlcadaAprovacao?  @relation(fields: [idAlcada], references: [id])
   itens       ItemPedido[]
   aprovacoes  AprovacaoPedido[]
   auditorias  AuditoriaPedido[]
@@ -301,7 +346,7 @@ model AprovacaoPedido {
   criadoEm     DateTime @default(now()) @map("criado_em")
 
   pedido    Pedido          @relation(fields: [idPedido], references: [id])
-  alcada    AlcadaAprovacao @relation(fields: [idAlcada], references: [id])
+  alcada    AlcadaAprovacao? @relation(fields: [idAlcada], references: [id])
   aprovador Usuario         @relation("AprovacaoPedido", fields: [idAprovador], references: [id])
 
   @@map("aprovacao_pedido")

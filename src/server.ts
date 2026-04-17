@@ -2,6 +2,7 @@ import 'dotenv/config'
 import Fastify from 'fastify'
 import fastifyCors from '@fastify/cors'
 import fastifyMultipart from '@fastify/multipart'
+import { authRoutes } from './modules/auth/auth.routes'
 import { catalogoRoutes } from './modules/catalogo/catalogo.routes'
 import { catalogoDuplicatasRoutes } from './modules/catalogo/catalogo.duplicatas.routes'
 import { catalogoCatmatRoutes } from './modules/catalogo/catalogo.catmat.routes'
@@ -19,11 +20,19 @@ import { monitoramentoRoutes } from './modules/monitoramento/monitoramento.route
 import { fornecedorHistoricoRoutes } from './modules/fornecedor/routes/fornecedor.historico.routes'
 import { organizacaoRoutes } from './modules/organizacao/organizacao.routes'
 import { assistenteRoutes } from './modules/assistente/assistente.routes'
+import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
+import { usuarioRoutes } from './modules/usuario/usuario.routes'
+import { alcadaRoutes } from './modules/alcada/alcada.routes'
+import { notificacoesRoutes } from './modules/notificacoes/notificacoes.routes'
 
 const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
-app.register(fastifyCors, { origin: '*' })
+app.register(fastifyCors, {
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+})
 app.register(fastifyMultipart)
+app.register(authRoutes)
 app.register(cotacaoRoutes)
 app.register(portalRoutes)
 app.register(contratoRoutes)
@@ -54,6 +63,10 @@ app.register(monitoramentoRoutes)
 app.register(fornecedorHistoricoRoutes)
 app.register(organizacaoRoutes)
 app.register(assistenteRoutes)
+app.register(dashboardRoutes)
+app.register(usuarioRoutes)
+app.register(alcadaRoutes)
+app.register(notificacoesRoutes)
 
 const start = async () => {
   try {
