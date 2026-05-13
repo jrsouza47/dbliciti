@@ -3,43 +3,64 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import prisma from '../../shared/prisma'
 
-// ─── Segredo JWT ──────────────────────────────────────────────────────────────
-// Em produção: mova para variável de ambiente JWT_SECRET
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dbliciti-dev-secret-troque-em-producao'
 const JWT_EXPIRES = '8h'
 
 export interface JwtPayload {
-  sub: string          // id do usuário
+  sub: string
   nome: string
   email: string
+  login: string | null
   perfil: string
+  alcadaValor: number | null
   idOrganizacao: string
   nomeOrganizacao: string
+  slugOrganizacao: string | null
+  modeloOrganizacao: number
+  isMatriz: boolean
+  isCentralCompras: boolean
+  idGrupo: string | null
 }
 
-// Helper — assina token
 function assinarToken(payload: JwtPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES })
 }
 
-// Helper — verifica token (usado por outras rotas protegidas futuramente)
 export function verificarToken(token: string): JwtPayload {
   return jwt.verify(token, JWT_SECRET) as JwtPayload
 }
 
 export async function authRoutes(app: FastifyInstance) {
 
-  // ── POST /auth/login ────────────────────────────────────────────────────────
+  // POST /auth/login
   app.post('/auth/login', async (request, reply) => {
-    const { email, senha } = request.body as { email: string; senha: string }
-
-    if (!email || !senha) {
-      return reply.status(400).send({ error: 'Email e senha são obrigatórios' })
+    const { email: identificador, senha, idOrganizacao } = request.body as {
+      email: string
+      senha: string
+      idOrganizacao?: string
     }
 
-    const usuario = await prisma.usuario.findUnique({
-      where: { email: email.toLowerCase().trim() },
-      include: { organizacao: { select: { id: true, nome: true, ativo: true } } },
+    if (!identificador || !senha) {
+      return reply.status(400).send({ error: 'Identificador e senha são obrigatórios' })
+    }
+
+    const id = identificador.toLowerCase().trim()
+
+    const usuario = await prisma.usuario.findFirst({
+      where: { OR: [{ email: id }, { login: id }] },
+      include: {
+        organizacoes: {
+          where: { ativo: true },
+          include: {
+            organizacao: {
+              select: {
+                id: true, nome: true, slug: true, ativo: true,
+                modelo: true, isMatriz: true, isCentralCompras: true, idGrupo: true,
+              },
+            },
+          },
+        },
+      },
     })
 
     if (!usuario || !usuario.senhaHash) {
@@ -50,148 +71,143 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Usuário inativo. Contate o administrador.' })
     }
 
-    if (!usuario.organizacao.ativo) {
-      return reply.status(403).send({ error: 'Organização inativa. Contate o administrador.' })
-    }
-
     const senhaValida = await bcrypt.compare(senha, usuario.senhaHash)
     if (!senhaValida) {
       return reply.status(401).send({ error: 'Credenciais inválidas' })
+    }
+
+    const orgsAtivas = usuario.organizacoes.filter((v) => v.organizacao.ativo)
+
+    // Fallback: se não tem vínculo em usuario_organizacao, usa idOrganizacao direto
+    if (orgsAtivas.length === 0) {
+      const org = await prisma.organizacao.findUnique({
+        where: { id: usuario.idOrganizacao },
+        select: { id: true, nome: true, slug: true, modelo: true, isMatriz: true, isCentralCompras: true, idGrupo: true, ativo: true },
+      })
+
+      if (!org || !org.ativo) {
+        return reply.status(403).send({ error: 'Nenhuma organização ativa vinculada ao usuário.' })
+      }
+
+      const payload: JwtPayload = {
+        sub: usuario.id,
+        nome: usuario.nome,
+        email: usuario.email,
+        login: usuario.login,
+        perfil: usuario.perfil,
+        alcadaValor: usuario.alcadaValor ? Number(usuario.alcadaValor) : null,
+        idOrganizacao: org.id,
+        nomeOrganizacao: org.nome,
+        slugOrganizacao: org.slug,
+        modeloOrganizacao: org.modelo,
+        isMatriz: org.isMatriz,
+        isCentralCompras: org.isCentralCompras,
+        idGrupo: org.idGrupo,
+      }
+
+      return reply.send({ token: assinarToken(payload), usuario: payload })
+    }
+
+    // Múltiplas orgs
+    if (orgsAtivas.length > 1 && !idOrganizacao) {
+      return reply.status(200).send({
+        selecionarOrganizacao: true,
+        organizacoes: orgsAtivas.map((v) => ({
+          id: v.organizacao.id,
+          nome: v.organizacao.nome,
+          slug: v.organizacao.slug,
+          perfil: v.perfil,
+          isMatriz: v.organizacao.isMatriz,
+          isCentralCompras: v.organizacao.isCentralCompras,
+        })),
+      })
+    }
+
+    let vinculo = orgsAtivas[0]
+    if (idOrganizacao) {
+      const encontrado = orgsAtivas.find((v) => v.idOrganizacao === idOrganizacao)
+      if (!encontrado) return reply.status(403).send({ error: 'Organização não vinculada ao usuário.' })
+      vinculo = encontrado
     }
 
     const payload: JwtPayload = {
       sub: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
-      perfil: usuario.perfil,
-      idOrganizacao: usuario.idOrganizacao,
-      nomeOrganizacao: usuario.organizacao.nome,
+      login: usuario.login,
+      perfil: vinculo.perfil,
+      alcadaValor: vinculo.alcadaValor ? Number(vinculo.alcadaValor) : null,
+      idOrganizacao: vinculo.organizacao.id,
+      nomeOrganizacao: vinculo.organizacao.nome,
+      slugOrganizacao: vinculo.organizacao.slug,
+      modeloOrganizacao: vinculo.organizacao.modelo,
+      isMatriz: vinculo.organizacao.isMatriz,
+      isCentralCompras: vinculo.organizacao.isCentralCompras,
+      idGrupo: vinculo.organizacao.idGrupo,
     }
 
-    const token = assinarToken(payload)
-
-    return reply.send({
-      token,
-      usuario: payload,
-    })
+    return reply.send({ token: assinarToken(payload), usuario: payload })
   })
 
-  // ── GET /auth/me ────────────────────────────────────────────────────────────
-  // Retorna dados do usuário logado a partir do token Authorization: Bearer <token>
+  // GET /auth/me
   app.get('/auth/me', async (request, reply) => {
     const authHeader = request.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) {
       return reply.status(401).send({ error: 'Token não fornecido' })
     }
-
     try {
-      const token = authHeader.slice(7)
-      const payload = verificarToken(token)
-
-      // Busca dados frescos do banco (perfil pode ter mudado)
+      const payload = verificarToken(authHeader.slice(7))
       const usuario = await prisma.usuario.findUnique({
         where: { id: payload.sub },
-        include: { organizacao: { select: { id: true, nome: true, modelo: true } } },
+        include: { organizacao: { select: { id: true, nome: true, slug: true, modelo: true, isMatriz: true, isCentralCompras: true, idGrupo: true } } },
       })
-
-      if (!usuario || !usuario.ativo) {
-        return reply.status(401).send({ error: 'Usuário não encontrado ou inativo' })
-      }
-
+      if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuário não encontrado ou inativo' })
       return reply.send({
-        id: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        perfil: usuario.perfil,
+        id: usuario.id, nome: usuario.nome, email: usuario.email,
+        login: usuario.login, perfil: usuario.perfil,
         alcadaValor: usuario.alcadaValor,
         idOrganizacao: usuario.idOrganizacao,
         nomeOrganizacao: usuario.organizacao.nome,
+        slugOrganizacao: usuario.organizacao.slug,
         modeloOrganizacao: usuario.organizacao.modelo,
+        isMatriz: usuario.organizacao.isMatriz,
+        isCentralCompras: usuario.organizacao.isCentralCompras,
+        idGrupo: usuario.organizacao.idGrupo,
       })
     } catch {
       return reply.status(401).send({ error: 'Token inválido ou expirado' })
     }
   })
 
-  // ── PATCH /auth/senha ───────────────────────────────────────────────────────
-  // Troca senha do usuário autenticado
+  // PATCH /auth/senha
   app.patch('/auth/senha', async (request, reply) => {
     const authHeader = request.headers.authorization
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'Token não fornecido' })
-    }
-
-    const { senhaAtual, novaSenha } = request.body as {
-      senhaAtual: string
-      novaSenha: string
-    }
-
-    if (!senhaAtual || !novaSenha) {
-      return reply.status(400).send({ error: 'senhaAtual e novaSenha são obrigatórios' })
-    }
-
-    if (novaSenha.length < 6) {
-      return reply.status(400).send({ error: 'A nova senha deve ter ao menos 6 caracteres' })
-    }
-
+    if (!authHeader?.startsWith('Bearer ')) return reply.status(401).send({ error: 'Token não fornecido' })
+    const { senhaAtual, novaSenha } = request.body as { senhaAtual: string; novaSenha: string }
+    if (!senhaAtual || !novaSenha) return reply.status(400).send({ error: 'senhaAtual e novaSenha são obrigatórios' })
+    if (novaSenha.length < 6) return reply.status(400).send({ error: 'A nova senha deve ter ao menos 6 caracteres' })
     try {
-      const token = authHeader.slice(7)
-      const payload = verificarToken(token)
-
+      const payload = verificarToken(authHeader.slice(7))
       const usuario = await prisma.usuario.findUnique({ where: { id: payload.sub } })
-      if (!usuario || !usuario.senhaHash) {
-        return reply.status(404).send({ error: 'Usuário não encontrado' })
-      }
-
-      const senhaValida = await bcrypt.compare(senhaAtual, usuario.senhaHash)
-      if (!senhaValida) {
-        return reply.status(401).send({ error: 'Senha atual incorreta' })
-      }
-
-      const novoHash = await bcrypt.hash(novaSenha, 10)
-      await prisma.usuario.update({
-        where: { id: payload.sub },
-        data: { senhaHash: novoHash },
-      })
-
+      if (!usuario || !usuario.senhaHash) return reply.status(404).send({ error: 'Usuário não encontrado' })
+      if (!await bcrypt.compare(senhaAtual, usuario.senhaHash)) return reply.status(401).send({ error: 'Senha atual incorreta' })
+      await prisma.usuario.update({ where: { id: payload.sub }, data: { senhaHash: await bcrypt.hash(novaSenha, 10) } })
       return reply.send({ ok: true })
     } catch {
       return reply.status(401).send({ error: 'Token inválido ou expirado' })
     }
   })
 
-  // ── POST /auth/admin/set-senha ──────────────────────────────────────────────
-  // Admin define senha de qualquer usuário (sem exigir senha atual)
-  // BACKLOG: proteger com verificação de perfil Admin quando middleware global existir
+  // POST /auth/admin/set-senha
   app.post('/auth/admin/set-senha', async (request, reply) => {
     const authHeader = request.headers.authorization
-    if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'Token não fornecido' })
-    }
-
+    if (!authHeader?.startsWith('Bearer ')) return reply.status(401).send({ error: 'Token não fornecido' })
     try {
-      const token = authHeader.slice(7)
-      const payload = verificarToken(token)
-
-      if (payload.perfil !== 'Admin') {
-        return reply.status(403).send({ error: 'Apenas administradores podem redefinir senhas' })
-      }
-
-      const { idUsuario, novaSenha } = request.body as {
-        idUsuario: string
-        novaSenha: string
-      }
-
-      if (!idUsuario || !novaSenha || novaSenha.length < 6) {
-        return reply.status(400).send({ error: 'idUsuario e novaSenha (mín. 6 chars) são obrigatórios' })
-      }
-
-      const hash = await bcrypt.hash(novaSenha, 10)
-      await prisma.usuario.update({
-        where: { id: idUsuario },
-        data: { senhaHash: hash },
-      })
-
+      const payload = verificarToken(authHeader.slice(7))
+      if (payload.perfil !== 'Admin' && payload.perfil !== 'Gestor') return reply.status(403).send({ error: 'Apenas administradores podem redefinir senhas' })
+      const { idUsuario, novaSenha } = request.body as { idUsuario: string; novaSenha: string }
+      if (!idUsuario || !novaSenha || novaSenha.length < 6) return reply.status(400).send({ error: 'idUsuario e novaSenha (mín. 6 chars) são obrigatórios' })
+      await prisma.usuario.update({ where: { id: idUsuario }, data: { senhaHash: await bcrypt.hash(novaSenha, 10) } })
       return reply.send({ ok: true })
     } catch {
       return reply.status(401).send({ error: 'Token inválido ou expirado' })
