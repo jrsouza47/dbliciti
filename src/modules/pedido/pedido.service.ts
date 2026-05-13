@@ -201,19 +201,15 @@ export async function decidirPedido(id: string, data: DecidirPedidoInput) {
     throw new Error('Pedido não está em aprovação')
 
   const alcada = await prisma.alcadaAprovacao.findFirst({
-    where: { idOrganizacao: pedido.idOrganizacao, tipoProcesso: 1, ativo: true },
+    where: { idOrganizacao: pedido.idOrganizacao, tipo: 1, ativo: true },
     include: {
-      participantes: {
-        where: { ativo: true },
-        orderBy: { nivel: 'asc' },
+      usuarios: {
+        where: { status: 1 },
       },
     },
   })
 
   if (!alcada) throw new Error('Alçada de aprovação não configurada para Pedido')
-
-  const participanteAtual = alcada.participantes.find(p => p.nivel === pedido.nivelAtual)
-  if (!participanteAtual) throw new Error('Nível de aprovação não encontrado')
 
   const decisaoInt = data.decisao === 'Aprovado' ? 1 : 2
 
@@ -229,27 +225,12 @@ export async function decidirPedido(id: string, data: DecidirPedidoInput) {
   })
 
   let novoStatus = pedido.status
-  let novoNivel = pedido.nivelAtual
+  const novoNivel = pedido.nivelAtual
 
   if (decisaoInt === 2) {
     novoStatus = 5 // Reprovado
   } else {
-    const podeAvancar = alcada.controlePorNivel
-      ? true
-      : !participanteAtual.valorMaximo ||
-        Number(pedido.valorTotal) <= Number(participanteAtual.valorMaximo)
-
-    if (podeAvancar) {
-      const proximoNivel = alcada.participantes
-        .filter(p => p.nivel > pedido.nivelAtual)
-        .sort((a, b) => a.nivel - b.nivel)[0]
-
-      if (proximoNivel) {
-        novoNivel = proximoNivel.nivel
-      } else {
-        novoStatus = 4 // Aprovado
-      }
-    }
+    novoStatus = 4 // Aprovado (fluxo simples — sem níveis múltiplos no schema atual)
   }
 
   const pedidoAtualizado = await prisma.pedido.update({
