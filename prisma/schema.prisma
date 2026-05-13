@@ -64,6 +64,19 @@ model DominioEnum {
 // Base
 // ─────────────────────────────────────────────
 
+// Grupo Empresarial
+model Grupo {
+  id           String        @id @default(uuid())
+  nome         String
+  cnpj         String?
+  ativo        Boolean       @default(true)
+  criadoEm     DateTime      @default(now()) @map("criado_em")
+
+  organizacoes Organizacao[]
+
+  @@map("grupo")
+}
+
 model Organizacao {
   id                  String    @id @default(uuid())
   nome                String
@@ -93,7 +106,18 @@ model Organizacao {
   porte               String?
   capitalSocial       Decimal?  @map("capital_social") @db.Decimal(15, 2)
 
+  // Grupo e hierarquia
+  idGrupo             String?   @map("id_grupo")
+  idOrganizacaoPai    String?   @map("id_organizacao_pai")
+  isMatriz            Boolean   @default(false) @map("is_matriz")
+  isCentralCompras    Boolean   @default(false) @map("is_central_compras")
+  slug                String?   @unique
+
   usuarios              Usuario[]
+  usuariosOrganizacao   UsuarioOrganizacao[]
+  grupo                 Grupo?                @relation(fields: [idGrupo], references: [id])
+  organizacaoPai        Organizacao?          @relation("OrganizacaoFiliais", fields: [idOrganizacaoPai], references: [id])
+  filiais               Organizacao[]         @relation("OrganizacaoFiliais")
   centrosCusto          CentroCusto[]
   categorias            Categoria[]
   itens                 ItemCatalogo[]
@@ -121,8 +145,12 @@ model Usuario {
   idSubstituto  String?  @map("id_substituto")
   ativo         Boolean  @default(true)
   criadoEm      DateTime @default(now()) @map("criado_em")
+  login              String?   @unique @db.VarChar(15)
+  resetToken         String?   @map("reset_token")
+  resetTokenExpira   DateTime? @map("reset_token_expira")
 
   organizacao                 Organizacao             @relation(fields: [idOrganizacao], references: [id])
+  organizacoes                UsuarioOrganizacao[]
   substituto                  Usuario?                @relation("Substituto", fields: [idSubstituto], references: [id])
   substituidos                Usuario[]               @relation("Substituto")
   itensCriados                ItemCatalogo[]
@@ -142,6 +170,23 @@ model Usuario {
   alcadas                     AlcadaUsuario[]         @relation("AlcadaUsuario")
 
   @@map("usuario")
+}
+
+
+model UsuarioOrganizacao {
+  id              String   @id @default(uuid())
+  idUsuario       String   @map("id_usuario")
+  idOrganizacao   String   @map("id_organizacao")
+  perfil          String
+  alcadaValor     Decimal? @map("alcada_valor") @db.Decimal(15, 2)
+  ativo           Boolean  @default(true)
+  criadoEm        DateTime @default(now()) @map("criado_em")
+
+  usuario      Usuario     @relation(fields: [idUsuario], references: [id], onDelete: Cascade)
+  organizacao  Organizacao @relation(fields: [idOrganizacao], references: [id], onDelete: Cascade)
+
+  @@unique([idUsuario, idOrganizacao])
+  @@map("usuario_organizacao")
 }
 
 model CentroCusto {
