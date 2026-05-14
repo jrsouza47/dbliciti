@@ -24,6 +24,7 @@ import { dashboardRoutes } from './modules/dashboard/dashboard.routes'
 import { usuarioRoutes } from './modules/usuario/usuario.routes'
 import { alcadaRoutes } from './modules/alcada/alcada.routes'
 import { notificacoesRoutes } from './modules/notificacoes/notificacoes.routes'
+import { filialRoutes } from './modules/filial/filial.routes'
 
 const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
@@ -67,6 +68,7 @@ app.register(dashboardRoutes)
 app.register(usuarioRoutes)
 app.register(alcadaRoutes)
 app.register(notificacoesRoutes)
+app.register(filialRoutes)
 
 const start = async () => {
   try {
