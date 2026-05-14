@@ -88,12 +88,6 @@ export async function deletarFilial(id: string) {
   const filial = await prisma.filial.findUnique({ where: { id } })
   if (!filial) throw new Error('Filial não encontrada')
 
-  const usuariosVinculados = await prisma.usuarioOrganizacao.count({
-    where: { idFilial: id },
-  })
-  if (usuariosVinculados > 0)
-    throw new Error('Filial possui usuários vinculados. Desvincule-os antes de excluir.')
-
   await prisma.filial.delete({ where: { id } })
   return { mensagem: 'Filial excluída com sucesso' }
 }
