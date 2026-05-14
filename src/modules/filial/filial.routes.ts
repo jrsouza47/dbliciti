@@ -68,7 +68,7 @@ export async function filialRoutes(app: FastifyInstance) {
     try {
       const { id } = request.params as { id: string }
       const resultado = await deletarFilial(id)
-      return reply.send(resultado)
+      return reply.status(200).send(resultado)
     } catch (err: any) {
       return reply.status(400).send({ error: err.message })
     }
