@@ -17,8 +17,6 @@ export interface JwtPayload {
   nomeOrganizacao: string
   slugOrganizacao: string | null
   modeloOrganizacao: number
-  isMatriz: boolean
-  isCentralCompras: boolean
   idGrupo: string | null
 }
 
@@ -55,7 +53,7 @@ export async function authRoutes(app: FastifyInstance) {
             organizacao: {
               select: {
                 id: true, nome: true, slug: true, ativo: true,
-                modelo: true, isMatriz: true, isCentralCompras: true, idGrupo: true,
+                modelo: true, idGrupo: true,
               },
             },
           },
@@ -82,7 +80,7 @@ export async function authRoutes(app: FastifyInstance) {
     if (orgsAtivas.length === 0) {
       const org = await prisma.organizacao.findUnique({
         where: { id: usuario.idOrganizacao },
-        select: { id: true, nome: true, slug: true, modelo: true, isMatriz: true, isCentralCompras: true, idGrupo: true, ativo: true },
+        select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true, ativo: true },
       })
 
       if (!org || !org.ativo) {
@@ -100,8 +98,6 @@ export async function authRoutes(app: FastifyInstance) {
         nomeOrganizacao: org.nome,
         slugOrganizacao: org.slug,
         modeloOrganizacao: org.modelo,
-        isMatriz: org.isMatriz,
-        isCentralCompras: org.isCentralCompras,
         idGrupo: org.idGrupo,
       }
 
@@ -117,8 +113,6 @@ export async function authRoutes(app: FastifyInstance) {
           nome: v.organizacao.nome,
           slug: v.organizacao.slug,
           perfil: v.perfil,
-          isMatriz: v.organizacao.isMatriz,
-          isCentralCompras: v.organizacao.isCentralCompras,
         })),
       })
     }
@@ -141,8 +135,6 @@ export async function authRoutes(app: FastifyInstance) {
       nomeOrganizacao: vinculo.organizacao.nome,
       slugOrganizacao: vinculo.organizacao.slug,
       modeloOrganizacao: vinculo.organizacao.modelo,
-      isMatriz: vinculo.organizacao.isMatriz,
-      isCentralCompras: vinculo.organizacao.isCentralCompras,
       idGrupo: vinculo.organizacao.idGrupo,
     }
 
@@ -159,7 +151,7 @@ export async function authRoutes(app: FastifyInstance) {
       const payload = verificarToken(authHeader.slice(7))
       const usuario = await prisma.usuario.findUnique({
         where: { id: payload.sub },
-        include: { organizacao: { select: { id: true, nome: true, slug: true, modelo: true, isMatriz: true, isCentralCompras: true, idGrupo: true } } },
+        include: { organizacao: { select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true } } },
       })
       if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuário não encontrado ou inativo' })
       return reply.send({
@@ -170,8 +162,6 @@ export async function authRoutes(app: FastifyInstance) {
         nomeOrganizacao: usuario.organizacao.nome,
         slugOrganizacao: usuario.organizacao.slug,
         modeloOrganizacao: usuario.organizacao.modelo,
-        isMatriz: usuario.organizacao.isMatriz,
-        isCentralCompras: usuario.organizacao.isCentralCompras,
         idGrupo: usuario.organizacao.idGrupo,
       })
     } catch {
