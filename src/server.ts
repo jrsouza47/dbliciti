@@ -41,7 +41,7 @@ app.register(negociacaoRoutes)
 
 app.addContentTypeParser('application/json', { parseAs: 'string' }, function (req, body, done) {
   try {
-    done(null, JSON.parse(body as string))
+    done(null, body ? JSON.parse(body as string) : {})
   } catch (err) {
     done(err as Error, undefined)
   }
