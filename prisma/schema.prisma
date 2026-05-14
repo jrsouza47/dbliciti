@@ -81,7 +81,7 @@ model Organizacao {
   id                  String    @id @default(uuid())
   nome                String
   cnpj                String
-  modelo              Int       @default(1)
+  modelo              Int       @default(1) // 1=Gestão 2=Compras Centralizadas 3=Híbrido
   ativo               Boolean   @default(true)
   configuracoes       Json?     @map("configuracoes")
   criadoEm            DateTime  @default(now()) @map("criado_em")
@@ -106,18 +106,14 @@ model Organizacao {
   porte               String?
   capitalSocial       Decimal?  @map("capital_social") @db.Decimal(15, 2)
 
-  // Grupo e hierarquia
+  // Grupo
   idGrupo             String?   @map("id_grupo")
-  idOrganizacaoPai    String?   @map("id_organizacao_pai")
-  isMatriz            Boolean   @default(false) @map("is_matriz")
-  isCentralCompras    Boolean   @default(false) @map("is_central_compras")
   slug                String?   @unique
 
   usuarios              Usuario[]
   usuariosOrganizacao   UsuarioOrganizacao[]
   grupo                 Grupo?                @relation(fields: [idGrupo], references: [id])
-  organizacaoPai        Organizacao?          @relation("OrganizacaoFiliais", fields: [idOrganizacaoPai], references: [id])
-  filiais               Organizacao[]         @relation("OrganizacaoFiliais")
+  filiais               Filial[]
   centrosCusto          CentroCusto[]
   categorias            Categoria[]
   itens                 ItemCatalogo[]
@@ -132,6 +128,40 @@ model Organizacao {
   estruturasHierarquia  EstruturaHierarquia[]
 
   @@map("organizacao")
+}
+
+// ─────────────────────────────────────────────
+// Filial (entidade separada)
+// ─────────────────────────────────────────────
+
+model Filial {
+  id                         String    @id @default(uuid())
+  nome                       String
+  cnpj                       String    @unique
+  razaoSocial                String?   @map("razao_social")
+  nomeFantasia               String?   @map("nome_fantasia")
+
+  idOrganizacao              String    @map("id_organizacao")
+  isMatriz                   Boolean   @default(false) @map("is_matriz")
+  isCentralCompras           Boolean   @default(false) @map("is_central_compras")
+  configuracaoCentralCompras Json?     @map("configuracao_central_compras")
+
+  // Endereço
+  logradouro                 String?
+  numero                     String?
+  complemento                String?
+  bairro                     String?
+  municipio                  String?
+  uf                         String?
+  cep                        String?
+
+  ativo                      Boolean   @default(true)
+  criadoEm                   DateTime  @default(now()) @map("criado_em")
+
+  organizacao         Organizacao          @relation(fields: [idOrganizacao], references: [id])
+  usuariosOrganizacao UsuarioOrganizacao[]
+
+  @@map("filial")
 }
 
 model Usuario {
@@ -172,20 +202,21 @@ model Usuario {
   @@map("usuario")
 }
 
-
 model UsuarioOrganizacao {
   id              String   @id @default(uuid())
   idUsuario       String   @map("id_usuario")
   idOrganizacao   String   @map("id_organizacao")
+  idFilial        String?  @map("id_filial")        // null = acesso a toda a organização
   perfil          String
   alcadaValor     Decimal? @map("alcada_valor") @db.Decimal(15, 2)
   ativo           Boolean  @default(true)
   criadoEm        DateTime @default(now()) @map("criado_em")
 
-  usuario      Usuario     @relation(fields: [idUsuario], references: [id], onDelete: Cascade)
-  organizacao  Organizacao @relation(fields: [idOrganizacao], references: [id], onDelete: Cascade)
+  usuario      Usuario      @relation(fields: [idUsuario],     references: [id], onDelete: Cascade)
+  organizacao  Organizacao  @relation(fields: [idOrganizacao], references: [id], onDelete: Cascade)
+  filial       Filial?      @relation(fields: [idFilial],      references: [id], onDelete: SetNull)
 
-  @@unique([idUsuario, idOrganizacao])
+  @@unique([idUsuario, idOrganizacao, idFilial])
   @@map("usuario_organizacao")
 }
 
@@ -309,7 +340,7 @@ model AlcadaAprovacao {
   tipo              Int       @default(1) // 1=Pedido Compra 2=Cotacao 3=Contrato 4=Licitacao
   urgente           Boolean   @default(false)
   criticidadePadrao Int       @default(1) @map("criticidade_padrao") // 1=Normal 2=Alta 3=Maxima
-  alcada            Boolean   @default(false) // Somente uma por org pode ser true
+  alcada            Boolean   @default(false)
   dataInicio        DateTime? @map("data_inicio")
   dataFim           DateTime? @map("data_fim")
   ativo             Boolean   @default(true)
@@ -390,9 +421,9 @@ model AprovacaoPedido {
   justificativa String?
   criadoEm     DateTime @default(now()) @map("criado_em")
 
-  pedido    Pedido          @relation(fields: [idPedido], references: [id])
+  pedido    Pedido           @relation(fields: [idPedido], references: [id])
   alcada    AlcadaAprovacao? @relation(fields: [idAlcada], references: [id])
-  aprovador Usuario         @relation("AprovacaoPedido", fields: [idAprovador], references: [id])
+  aprovador Usuario          @relation("AprovacaoPedido", fields: [idAprovador], references: [id])
 
   @@map("aprovacao_pedido")
 }
