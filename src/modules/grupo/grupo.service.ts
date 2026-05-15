@@ -63,3 +63,17 @@ export async function desvincularOrganizacao(idGrupo: string, idOrganizacao: str
     data: { idGrupo: null },
   })
 }
+
+export async function excluirGrupo(id: string) {
+  const grupo = await prisma.grupo.findUnique({
+    where: { id },
+    include: { organizacoes: { select: { id: true } } },
+  })
+  if (!grupo) throw new Error('Grupo não encontrado')
+  if (grupo.organizacoes.length > 0) {
+    throw new Error(
+      `Não é possível excluir: o grupo possui ${grupo.organizacoes.length} organização(ões) vinculada(s). Desvincule-as primeiro.`
+    )
+  }
+  return prisma.grupo.delete({ where: { id } })
+}

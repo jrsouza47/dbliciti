@@ -6,6 +6,7 @@ import {
   criarGrupo,
   vincularOrganizacao,
   desvincularOrganizacao,
+  excluirGrupo,
 } from './grupo.service'
 
 export async function grupoRoutes(app: FastifyInstance) {
@@ -94,6 +95,17 @@ export async function grupoRoutes(app: FastifyInstance) {
       const { id, idOrg } = request.params as { id: string; idOrg: string }
       await desvincularOrganizacao(id, idOrg)
       return reply.status(200).send({ mensagem: 'Organização desvinculada com sucesso' })
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message })
+    }
+  })
+
+  // Excluir grupo (apenas se não tiver organizações vinculadas)
+  app.delete('/grupos/:id', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string }
+      await excluirGrupo(id)
+      return reply.status(200).send({ mensagem: 'Grupo excluído com sucesso' })
     } catch (err: any) {
       return reply.status(400).send({ error: err.message })
     }
