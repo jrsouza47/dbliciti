@@ -313,7 +313,11 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
       ...(justificativa !== undefined ? { justificativa } : {}),
       valorTotal,
     },
-    include: { itens: { include: { item: true } }, solicitante: true, centroCusto: true },
+    include: {
+      itens: { include: { item: true } },
+      solicitante: { select: { id: true, nome: true, email: true, perfil: true } },
+      centroCusto: { select: { id: true, codigo: true, descricao: true } },
+    },
   })
 }
 
