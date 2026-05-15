@@ -391,6 +391,7 @@ model Pedido {
   itens       ItemPedido[]
   aprovacoes  AprovacaoPedido[]
   auditorias  AuditoriaPedido[]
+  cotacoes    Cotacao[]
 
   @@unique([idOrganizacao, numero])
   @@map("pedido")
@@ -510,7 +511,7 @@ model DocumentoFornecedor {
 model Cotacao {
   id            String   @id @default(uuid())
   idOrganizacao String   @map("id_organizacao")
-  idPedido      String   @map("id_pedido")
+  idPedido      String?  @map("id_pedido")
   numero        String
   titulo        String
   modalidade    String
@@ -522,6 +523,7 @@ model Cotacao {
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   organizacao Organizacao      @relation(fields: [idOrganizacao], references: [id])
+  pedido      Pedido?          @relation(fields: [idPedido], references: [id])
   itens       ItemCotacao[]
   convites    ConviteCotacao[]
 
