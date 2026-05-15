@@ -70,8 +70,18 @@ export async function pedidoRoutes(app: FastifyInstance) {
   // PATCH /pedidos/:id — Atualizar rascunho (status 1)
   app.patch('/pedidos/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const data = atualizarPedidoSchema.parse(request.body)
-    return atualizarPedido(id, data)
+    try {
+      const data = atualizarPedidoSchema.parse(request.body)
+      return reply.send(await atualizarPedido(id, data))
+    } catch (err: any) {
+      // Zod ZodError — campo inválido
+      if (err?.name === 'ZodError') {
+        const campo = err.errors?.[0]?.path?.join('.') ?? 'dados'
+        const msg = err.errors?.[0]?.message ?? 'Campo inválido'
+        return reply.status(400).send({ error: `Campo inválido: ${campo} — ${msg}` })
+      }
+      return reply.status(400).send({ error: err?.message ?? 'Erro ao atualizar pedido' })
+    }
   })
 
   // PATCH /pedidos/:id/cadastrar — Rascunho (1) → Cadastrado (2)
