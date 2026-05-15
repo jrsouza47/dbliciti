@@ -283,7 +283,8 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
   if (pedido.status !== 1)
     throw new Error('Apenas pedidos em Rascunho podem ser editados')
 
-  const { itens, ...resto } = data
+  // Extrai apenas os campos que existem no model Pedido — ignora tipoPedido, observacao etc.
+  const { itens, idCentroCusto, idAlcada, criticidade, justificativa } = data
 
   // Recalcula valor total se itens forem enviados
   let valorTotal = Number(pedido.valorTotal)
@@ -306,10 +307,10 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
   return prisma.pedido.update({
     where: { id },
     data: {
-      ...(resto.idCentroCusto !== undefined ? { idCentroCusto: resto.idCentroCusto } : {}),
-      ...(resto.idAlcada      !== undefined ? { idAlcada:      resto.idAlcada      } : {}),
-      ...(resto.criticidade   !== undefined ? { criticidade:   resto.criticidade   } : {}),
-      ...(resto.justificativa !== undefined ? { justificativa: resto.justificativa } : {}),
+      ...(idCentroCusto !== undefined ? { idCentroCusto } : {}),
+      ...(idAlcada      !== undefined ? { idAlcada      } : {}),
+      ...(criticidade   !== undefined ? { criticidade   } : {}),
+      ...(justificativa !== undefined ? { justificativa } : {}),
       valorTotal,
     },
     include: { itens: { include: { item: true } }, solicitante: true, centroCusto: true },
