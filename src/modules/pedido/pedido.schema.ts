@@ -39,6 +39,10 @@ export const cancelarPedidoSchema = z.object({
 
 export const atualizarPedidoSchema = z.object({
   idCentroCusto: z.string().optional(),
+  idAlcada:      z.string().optional(),
+  criticidade:   z.number().optional(),
+  tipoPedido:    z.number().optional(),
+  observacao:    z.string().optional(),
   justificativa: z.string().min(10).optional(),
   itens: z.array(z.object({
     idItem: z.string(),

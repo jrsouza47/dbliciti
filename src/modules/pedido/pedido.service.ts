@@ -307,6 +307,10 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
     where: { id },
     data: {
       ...(resto.idCentroCusto !== undefined ? { idCentroCusto: resto.idCentroCusto } : {}),
+      ...(resto.idAlcada      !== undefined ? { idAlcada:      resto.idAlcada      } : {}),
+      ...(resto.criticidade   !== undefined ? { criticidade:   resto.criticidade   } : {}),
+      ...(resto.tipoPedido    !== undefined ? { tipoPedido:    resto.tipoPedido    } : {}),
+      ...(resto.observacao    !== undefined ? { observacao:    resto.observacao    } : {}),
       ...(resto.justificativa !== undefined ? { justificativa: resto.justificativa } : {}),
       valorTotal,
     },
