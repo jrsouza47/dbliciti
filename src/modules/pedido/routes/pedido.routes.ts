@@ -31,10 +31,63 @@ export async function pedidoRoutes(app: FastifyInstance) {
     const { idOrganizacao } = request.query as { idOrganizacao: string }
     if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao obrigatorio' })
     const centros = await prisma.centroCusto.findMany({
-      where: { idOrganizacao, ativo: true },
+      where: { idOrganizacao },
       orderBy: { descricao: 'asc' },
     })
     return reply.send(centros)
+  })
+
+  // POST /centros-custo — Criar centro de custo
+  app.post('/centros-custo', async (request, reply) => {
+    try {
+      const { idOrganizacao, codigo, descricao } = request.body as { idOrganizacao: string; codigo: string; descricao: string }
+      if (!idOrganizacao || !codigo || !descricao)
+        return reply.status(400).send({ error: 'idOrganizacao, codigo e descricao são obrigatórios' })
+      const centro = await prisma.centroCusto.create({
+        data: { idOrganizacao, codigo: codigo.trim().toUpperCase(), descricao: descricao.trim() },
+      })
+      return reply.status(201).send(centro)
+    } catch (err: any) {
+      if (err?.code === 'P2002') return reply.status(400).send({ error: 'Já existe um centro de custo com este código nesta organização' })
+      return reply.status(400).send({ error: err?.message ?? 'Erro ao criar centro de custo' })
+    }
+  })
+
+  // PATCH /centros-custo/:id — Atualizar centro de custo
+  app.patch('/centros-custo/:id', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string }
+      const { codigo, descricao, ativo } = request.body as { codigo?: string; descricao?: string; ativo?: boolean }
+      const centro = await prisma.centroCusto.update({
+        where: { id },
+        data: {
+          ...(codigo    !== undefined ? { codigo:    codigo.trim().toUpperCase() } : {}),
+          ...(descricao !== undefined ? { descricao: descricao.trim()            } : {}),
+          ...(ativo     !== undefined ? { ativo                                  } : {}),
+        },
+      })
+      return reply.send(centro)
+    } catch (err: any) {
+      if (err?.code === 'P2002') return reply.status(400).send({ error: 'Já existe um centro de custo com este código nesta organização' })
+      if (err?.code === 'P2025') return reply.status(404).send({ error: 'Centro de custo não encontrado' })
+      return reply.status(400).send({ error: err?.message ?? 'Erro ao atualizar centro de custo' })
+    }
+  })
+
+  // DELETE /centros-custo/:id — Excluir centro de custo
+  app.delete('/centros-custo/:id', async (request, reply) => {
+    try {
+      const { id } = request.params as { id: string }
+      // Verifica se tem pedidos vinculados
+      const pedidos = await prisma.pedido.count({ where: { idCentroCusto: id } })
+      if (pedidos > 0)
+        return reply.status(400).send({ error: `Não é possível excluir: ${pedidos} pedido(s) vinculado(s). Desative o centro de custo em vez de excluir.` })
+      await prisma.centroCusto.delete({ where: { id } })
+      return reply.send({ mensagem: 'Centro de custo excluído com sucesso' })
+    } catch (err: any) {
+      if (err?.code === 'P2025') return reply.status(404).send({ error: 'Centro de custo não encontrado' })
+      return reply.status(400).send({ error: err?.message ?? 'Erro ao excluir centro de custo' })
+    }
   })
 
   // POST /pedidos — Criar pedido (status 1 = Rascunho)
