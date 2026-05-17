@@ -2,6 +2,8 @@ import { FastifyInstance } from 'fastify'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import prisma from '../../shared/prisma'
+import { lerConfiguracao } from '../configuracoes/configuracoes.service'
+import { getFilialVirtual } from '../filial/filial.service'
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dbliciti-dev-secret-troque-em-producao'
 const JWT_EXPIRES = '8h'
@@ -18,6 +20,9 @@ export interface JwtPayload {
   slugOrganizacao: string | null
   modeloOrganizacao: number
   idGrupo: string | null
+  usaFiliais: boolean
+  idFilial: string | null
+  nomeFilial: string | null
 }
 
 function assinarToken(payload: JwtPayload): string {
@@ -87,6 +92,9 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.status(403).send({ error: 'Nenhuma organização ativa vinculada ao usuário.' })
       }
 
+      const usaFiliais1 = (await lerConfiguracao(org.id, 'usaFiliais').catch(() => false)) as boolean
+      const filialVirtual1 = !usaFiliais1 ? await getFilialVirtual(org.id) : null
+
       const payload: JwtPayload = {
         sub: usuario.id,
         nome: usuario.nome,
@@ -99,6 +107,9 @@ export async function authRoutes(app: FastifyInstance) {
         slugOrganizacao: org.slug,
         modeloOrganizacao: org.modelo,
         idGrupo: org.idGrupo,
+        usaFiliais: usaFiliais1,
+        idFilial: filialVirtual1?.id ?? null,
+        nomeFilial: filialVirtual1?.nome ?? null,
       }
 
       return reply.send({ token: assinarToken(payload), usuario: payload })
@@ -124,6 +135,20 @@ export async function authRoutes(app: FastifyInstance) {
       vinculo = encontrado
     }
 
+    const usaFiliais2 = (await lerConfiguracao(vinculo.organizacao.id, 'usaFiliais').catch(() => false)) as boolean
+    // Se não usa filiais → pegar filial virtual; se usa filiais → pegar filial do vínculo
+    let idFilialFinal: string | null = null
+    let nomeFilialFinal: string | null = null
+    if (!usaFiliais2) {
+      const fv = await getFilialVirtual(vinculo.organizacao.id)
+      idFilialFinal = fv?.id ?? null
+      nomeFilialFinal = fv?.nome ?? null
+    } else if (vinculo.idFilial) {
+      const filial = await prisma.filial.findUnique({ where: { id: vinculo.idFilial }, select: { id: true, nome: true } })
+      idFilialFinal = filial?.id ?? null
+      nomeFilialFinal = filial?.nome ?? null
+    }
+
     const payload: JwtPayload = {
       sub: usuario.id,
       nome: usuario.nome,
@@ -136,6 +161,9 @@ export async function authRoutes(app: FastifyInstance) {
       slugOrganizacao: vinculo.organizacao.slug,
       modeloOrganizacao: vinculo.organizacao.modelo,
       idGrupo: vinculo.organizacao.idGrupo,
+      usaFiliais: usaFiliais2,
+      idFilial: idFilialFinal,
+      nomeFilial: nomeFilialFinal,
     }
 
     return reply.send({ token: assinarToken(payload), usuario: payload })

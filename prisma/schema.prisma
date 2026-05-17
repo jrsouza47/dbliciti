@@ -144,6 +144,7 @@ model Filial {
   idOrganizacao              String    @map("id_organizacao")
   isMatriz                   Boolean   @default(false) @map("is_matriz")
   isCentralCompras           Boolean   @default(false) @map("is_central_compras")
+  isVirtual                  Boolean   @default(false) @map("is_virtual")
   configuracaoCentralCompras Json?     @map("configuracao_central_compras")
 
   // Endereço

@@ -91,3 +91,58 @@ export async function deletarFilial(id: string) {
   await prisma.filial.delete({ where: { id } })
   return { mensagem: 'Filial excluída com sucesso' }
 }
+
+// ── Filial Virtual ────────────────────────────────────────────────────────────
+// Usada quando a organização NÃO usa filiais — invisível ao usuário
+
+export async function criarFilialVirtual(idOrganizacao: string) {
+  const org = await prisma.organizacao.findUnique({
+    where: { id: idOrganizacao },
+    select: { nome: true, cnpj: true, razaoSocial: true },
+  })
+  if (!org) throw new Error('Organização não encontrada')
+
+  // Verificar se já existe filial virtual
+  const existente = await prisma.filial.findFirst({
+    where: { idOrganizacao, isVirtual: true },
+  })
+  if (existente) {
+    // Reativar se estiver inativa
+    if (!existente.ativo) {
+      return prisma.filial.update({
+        where: { id: existente.id },
+        data: { ativo: true },
+      })
+    }
+    return existente
+  }
+
+  return prisma.filial.create({
+    data: {
+      idOrganizacao,
+      nome:        org.nome,
+      cnpj:        org.cnpj ?? `00000000000${idOrganizacao.slice(0, 2)}`,
+      razaoSocial: org.razaoSocial,
+      isMatriz:    true,
+      isVirtual:   true,
+      ativo:       true,
+    },
+  })
+}
+
+export async function desativarFilialVirtual(idOrganizacao: string) {
+  const virtual = await prisma.filial.findFirst({
+    where: { idOrganizacao, isVirtual: true, ativo: true },
+  })
+  if (!virtual) return null
+  return prisma.filial.update({
+    where: { id: virtual.id },
+    data: { ativo: false },
+  })
+}
+
+export async function getFilialVirtual(idOrganizacao: string) {
+  return prisma.filial.findFirst({
+    where: { idOrganizacao, isVirtual: true, ativo: true },
+  })
+}

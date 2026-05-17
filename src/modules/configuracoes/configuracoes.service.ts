@@ -1,9 +1,28 @@
 import prisma from '../../shared/prisma'
+import { criarFilialVirtual, desativarFilialVirtual } from '../filial/filial.service'
 
 // ─────────────────────────────────────────────
 // Dicionário de configurações disponíveis
 // ─────────────────────────────────────────────
 export const DICIONARIO_CONFIGURACOES = [
+  // ── Estrutura Organizacional ─────────────────
+  {
+    chave: 'usaFiliais',
+    rotulo: 'Organização trabalha com Filiais?',
+    descricao: 'Quando ativado, a movimentação é feita por Filial. A organização passa a ser a Matriz. Ao desativar, uma Filial virtual é criada automaticamente.',
+    tipo: 'boolean',
+    padrao: false,
+    grupo: 'Estrutura',
+  },
+  {
+    chave: 'usaGrupo',
+    rotulo: 'Organização pertence a um Grupo Empresarial?',
+    descricao: 'Quando ativado, permite vincular esta organização a um Grupo Empresarial.',
+    tipo: 'boolean',
+    padrao: false,
+    grupo: 'Estrutura',
+  },
+
   // ── Financeiro ──────────────────────────────
   {
     chave: 'usaCentroCusto',
@@ -190,6 +209,18 @@ export async function salvarConfiguracoes(
     where: { id: idOrganizacao },
     data: { configuracoes: valoresMesclados as any }
   })
+
+  // Gerenciar filial virtual ao mudar usaFiliais
+  if ('usaFiliais' in novasConfiguracoes) {
+    const usaFiliais = novasConfiguracoes.usaFiliais as boolean
+    if (!usaFiliais) {
+      // Organização NÃO usa filiais → criar/reativar filial virtual
+      await criarFilialVirtual(idOrganizacao)
+    } else {
+      // Organização USA filiais → desativar filial virtual
+      await desativarFilialVirtual(idOrganizacao)
+    }
+  }
 
   return buscarConfiguracoes(idOrganizacao)
 }
