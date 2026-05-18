@@ -160,4 +160,40 @@ export async function usuarioRoutes(app: FastifyInstance) {
 
     return reply.send({ senhaInicial })
   })
+
+  // GET /usuarios/:id/filial?idOrganizacao= — retorna filial vinculada ao usuário na org
+  app.get('/usuarios/:id/filial', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao é obrigatório' })
+
+    const vinculo = await prisma.usuarioOrganizacao.findFirst({
+      where: { idUsuario: id, idOrganizacao },
+      include: { filial: { select: { id: true, nome: true, cnpj: true, isMatriz: true } } },
+    })
+    return reply.send({
+      idFilial: vinculo?.idFilial ?? null,
+      nomeFilial: vinculo?.filial?.nome ?? null,
+      cnpjFilial: vinculo?.filial?.cnpj ?? null,
+      isMatriz: vinculo?.filial?.isMatriz ?? false,
+    })
+  })
+
+  // PATCH /usuarios/:id/filial — vincula ou desvincula filial do usuário na org
+  app.patch('/usuarios/:id/filial', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idFilial, idOrganizacao } = request.body as { idFilial: string | null; idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao é obrigatório' })
+
+    const updated = await prisma.usuarioOrganizacao.updateMany({
+      where: { idUsuario: id, idOrganizacao },
+      data: { idFilial: idFilial ?? null },
+    })
+
+    if (updated.count === 0) {
+      return reply.status(404).send({ error: 'Vínculo do usuário com a organização não encontrado' })
+    }
+
+    return reply.send({ ok: true })
+  })
 }
