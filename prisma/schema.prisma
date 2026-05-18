@@ -161,6 +161,7 @@ model Filial {
 
   organizacao         Organizacao          @relation(fields: [idOrganizacao], references: [id])
   usuariosOrganizacao UsuarioOrganizacao[]
+  usuariosVinculados  UsuarioFilial[]
 
   @@map("filial")
 }
@@ -199,6 +200,7 @@ model Usuario {
   fracionamentosDetectados    LogFracionamento[]      @relation("FracionamentoSolicitante")
   estruturasCriadas           EstruturaHierarquia[]
   alcadas                     AlcadaUsuario[]         @relation("AlcadaUsuario")
+  filiaisVinculadas           UsuarioFilial[]
 
   @@map("usuario")
 }
@@ -219,6 +221,19 @@ model UsuarioOrganizacao {
 
   @@unique([idUsuario, idOrganizacao, idFilial])
   @@map("usuario_organizacao")
+}
+
+model UsuarioFilial {
+  id        String   @id @default(uuid())
+  idUsuario String   @map("id_usuario")
+  idFilial  String   @map("id_filial")
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  usuario  Usuario @relation(fields: [idUsuario], references: [id], onDelete: Cascade)
+  filial   Filial  @relation(fields: [idFilial],  references: [id], onDelete: Cascade)
+
+  @@unique([idUsuario, idFilial])
+  @@map("usuario_filial")
 }
 
 model CentroCusto {
