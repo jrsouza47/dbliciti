@@ -29,8 +29,15 @@ export async function usuarioRoutes(app: FastifyInstance) {
     const { idOrganizacao } = request.query as { idOrganizacao: string }
     if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao é obrigatório' })
 
+    // Busca usuarios vinculados a essa org via usuario_organizacao
+    // OU cuja org principal seja essa (compatibilidade com registros antigos)
     const usuarios = await prisma.usuario.findMany({
-      where: { idOrganizacao },
+      where: {
+        OR: [
+          { idOrganizacao },
+          { organizacoes: { some: { idOrganizacao, ativo: true } } },
+        ],
+      },
       orderBy: { nome: 'asc' },
       select: {
         id: true,
@@ -42,7 +49,10 @@ export async function usuarioRoutes(app: FastifyInstance) {
         criadoEm: true,
       },
     })
-    return reply.send(usuarios)
+    // Remove duplicatas (usuario pode aparecer pelos dois critérios)
+    const vistos = new Set<string>()
+    const unicos = usuarios.filter(u => { if (vistos.has(u.id)) return false; vistos.add(u.id); return true })
+    return reply.send(unicos)
   })
 
   // GET /usuarios/:id
