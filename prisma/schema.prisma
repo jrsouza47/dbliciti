@@ -224,10 +224,11 @@ model UsuarioOrganizacao {
 }
 
 model UsuarioFilial {
-  id        String   @id @default(uuid())
-  idUsuario String   @map("id_usuario")
-  idFilial  String   @map("id_filial")
-  criadoEm DateTime @default(now()) @map("criado_em")
+  id          String   @id @default(uuid())
+  idUsuario   String   @map("id_usuario")
+  idFilial    String   @map("id_filial")
+  filialAtiva Boolean  @default(false) @map("filial_ativa")
+  criadoEm   DateTime @default(now()) @map("criado_em")
 
   usuario  Usuario @relation(fields: [idUsuario], references: [id], onDelete: Cascade)
   filial   Filial  @relation(fields: [idFilial],  references: [id], onDelete: Cascade)

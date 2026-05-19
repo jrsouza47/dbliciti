@@ -21,6 +21,8 @@ export interface JwtPayload {
   modeloOrganizacao: number
   idGrupo: string | null
   usaFiliais: boolean
+  isMatriz: boolean       // true quando org NAO usa filiais (a propria org e a matriz)
+  usaGrupo: boolean       // true quando org pertence a um grupo empresarial
   idFilial: string | null
   nomeFilial: string | null
 }
@@ -31,6 +33,33 @@ function assinarToken(payload: JwtPayload): string {
 
 export function verificarToken(token: string): JwtPayload {
   return jwt.verify(token, JWT_SECRET) as JwtPayload
+}
+
+// Helper: busca filial ativa do usuario no banco
+async function getFilialAtivaDoBanco(
+  idUsuario: string,
+  idOrganizacao: string,
+): Promise<{ id: string; nome: string } | null> {
+  const vinculoAtivo = await prisma.usuarioFilial.findFirst({
+    where: {
+      idUsuario,
+      filialAtiva: true,
+      filial: { idOrganizacao, isVirtual: false, ativo: true },
+    },
+    include: { filial: { select: { id: true, nome: true } } },
+  })
+  if (vinculoAtivo) return vinculoAtivo.filial
+
+  // Fallback: primeira filial vinculada
+  const primeiro = await prisma.usuarioFilial.findFirst({
+    where: {
+      idUsuario,
+      filial: { idOrganizacao, isVirtual: false, ativo: true },
+    },
+    include: { filial: { select: { id: true, nome: true } } },
+    orderBy: { criadoEm: 'asc' },
+  })
+  return primeiro?.filial ?? null
 }
 
 export async function authRoutes(app: FastifyInstance) {
@@ -44,7 +73,7 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     if (!identificador || !senha) {
-      return reply.status(400).send({ error: 'Identificador e senha são obrigatórios' })
+      return reply.status(400).send({ error: 'Identificador e senha sao obrigatorios' })
     }
 
     const id = identificador.toLowerCase().trim()
@@ -67,21 +96,21 @@ export async function authRoutes(app: FastifyInstance) {
     })
 
     if (!usuario || !usuario.senhaHash) {
-      return reply.status(401).send({ error: 'Credenciais inválidas' })
+      return reply.status(401).send({ error: 'Credenciais invalidas' })
     }
 
     if (!usuario.ativo) {
-      return reply.status(403).send({ error: 'Usuário inativo. Contate o administrador.' })
+      return reply.status(403).send({ error: 'Usuario inativo. Contate o administrador.' })
     }
 
     const senhaValida = await bcrypt.compare(senha, usuario.senhaHash)
     if (!senhaValida) {
-      return reply.status(401).send({ error: 'Credenciais inválidas' })
+      return reply.status(401).send({ error: 'Credenciais invalidas' })
     }
 
     const orgsAtivas = usuario.organizacoes.filter((v) => v.organizacao.ativo)
 
-    // Fallback: se não tem vínculo em usuario_organizacao, usa idOrganizacao direto
+    // Fallback sem vinculo em usuario_organizacao
     if (orgsAtivas.length === 0) {
       const org = await prisma.organizacao.findUnique({
         where: { id: usuario.idOrganizacao },
@@ -89,11 +118,24 @@ export async function authRoutes(app: FastifyInstance) {
       })
 
       if (!org || !org.ativo) {
-        return reply.status(403).send({ error: 'Nenhuma organização ativa vinculada ao usuário.' })
+        return reply.status(403).send({ error: 'Nenhuma organizacao ativa vinculada ao usuario.' })
       }
 
       const usaFiliais1 = (await lerConfiguracao(org.id, 'usaFiliais').catch(() => false)) as boolean
-      const filialVirtual1 = !usaFiliais1 ? await getFilialVirtual(org.id) : null
+      const usaGrupo1   = (await lerConfiguracao(org.id, 'usaGrupo').catch(() => false)) as boolean
+
+      let idFilialFinal: string | null = null
+      let nomeFilialFinal: string | null = null
+
+      if (!usaFiliais1) {
+        const fv = await getFilialVirtual(org.id)
+        idFilialFinal   = fv?.id   ?? null
+        nomeFilialFinal = fv?.nome ?? null
+      } else {
+        const filialAtiva = await getFilialAtivaDoBanco(usuario.id, org.id)
+        idFilialFinal   = filialAtiva?.id   ?? null
+        nomeFilialFinal = filialAtiva?.nome ?? null
+      }
 
       const payload: JwtPayload = {
         sub: usuario.id,
@@ -108,14 +150,16 @@ export async function authRoutes(app: FastifyInstance) {
         modeloOrganizacao: org.modelo,
         idGrupo: org.idGrupo,
         usaFiliais: usaFiliais1,
-        idFilial: filialVirtual1?.id ?? null,
-        nomeFilial: filialVirtual1?.nome ?? null,
+        isMatriz: !usaFiliais1,
+        usaGrupo: usaGrupo1,
+        idFilial: idFilialFinal,
+        nomeFilial: nomeFilialFinal,
       }
 
       return reply.send({ token: assinarToken(payload), usuario: payload })
     }
 
-    // Múltiplas orgs
+    // Multiplas orgs
     if (orgsAtivas.length > 1 && !idOrganizacao) {
       return reply.status(200).send({
         selecionarOrganizacao: true,
@@ -131,22 +175,24 @@ export async function authRoutes(app: FastifyInstance) {
     let vinculo = orgsAtivas[0]
     if (idOrganizacao) {
       const encontrado = orgsAtivas.find((v) => v.idOrganizacao === idOrganizacao)
-      if (!encontrado) return reply.status(403).send({ error: 'Organização não vinculada ao usuário.' })
+      if (!encontrado) return reply.status(403).send({ error: 'Organizacao nao vinculada ao usuario.' })
       vinculo = encontrado
     }
 
     const usaFiliais2 = (await lerConfiguracao(vinculo.organizacao.id, 'usaFiliais').catch(() => false)) as boolean
-    // Se não usa filiais → pegar filial virtual; se usa filiais → pegar filial do vínculo
+    const usaGrupo2   = (await lerConfiguracao(vinculo.organizacao.id, 'usaGrupo').catch(() => false)) as boolean
+
     let idFilialFinal: string | null = null
     let nomeFilialFinal: string | null = null
+
     if (!usaFiliais2) {
       const fv = await getFilialVirtual(vinculo.organizacao.id)
-      idFilialFinal = fv?.id ?? null
+      idFilialFinal   = fv?.id   ?? null
       nomeFilialFinal = fv?.nome ?? null
-    } else if (vinculo.idFilial) {
-      const filial = await prisma.filial.findUnique({ where: { id: vinculo.idFilial }, select: { id: true, nome: true } })
-      idFilialFinal = filial?.id ?? null
-      nomeFilialFinal = filial?.nome ?? null
+    } else {
+      const filialAtiva = await getFilialAtivaDoBanco(usuario.id, vinculo.organizacao.id)
+      idFilialFinal   = filialAtiva?.id   ?? null
+      nomeFilialFinal = filialAtiva?.nome ?? null
     }
 
     const payload: JwtPayload = {
@@ -162,6 +208,8 @@ export async function authRoutes(app: FastifyInstance) {
       modeloOrganizacao: vinculo.organizacao.modelo,
       idGrupo: vinculo.organizacao.idGrupo,
       usaFiliais: usaFiliais2,
+      isMatriz: !usaFiliais2,
+      usaGrupo: usaGrupo2,
       idFilial: idFilialFinal,
       nomeFilial: nomeFilialFinal,
     }
@@ -169,11 +217,69 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({ token: assinarToken(payload), usuario: payload })
   })
 
+  // POST /auth/trocar-filial
+  // Troca filial ativa, persiste no banco, devolve novo JWT
+  app.post('/auth/trocar-filial', async (request, reply) => {
+    const authHeader = request.headers.authorization
+    if (!authHeader?.startsWith('Bearer ')) {
+      return reply.status(401).send({ error: 'Token nao fornecido' })
+    }
+
+    let usuario: JwtPayload
+    try {
+      usuario = verificarToken(authHeader.slice(7))
+    } catch {
+      return reply.status(401).send({ error: 'Token invalido ou expirado' })
+    }
+
+    if (!usuario.usaFiliais) {
+      return reply.status(400).send({ error: 'Organizacao nao utiliza filiais' })
+    }
+
+    const { idFilial } = request.body as { idFilial: string }
+    if (!idFilial) {
+      return reply.status(400).send({ error: 'idFilial e obrigatorio' })
+    }
+
+    // Valida acesso do usuario a essa filial
+    const vinculoFilial = await prisma.usuarioFilial.findFirst({
+      where: {
+        idUsuario: usuario.sub,
+        idFilial,
+        filial: { isVirtual: false, ativo: true },
+      },
+      include: { filial: { select: { id: true, nome: true } } },
+    })
+
+    if (!vinculoFilial) {
+      return reply.status(403).send({ error: 'Usuario nao tem acesso a essa filial' })
+    }
+
+    // Persiste: desativa todas, ativa a escolhida
+    await prisma.usuarioFilial.updateMany({
+      where: { idUsuario: usuario.sub },
+      data: { filialAtiva: false },
+    })
+    await prisma.usuarioFilial.update({
+      where: { id: vinculoFilial.id },
+      data: { filialAtiva: true },
+    })
+
+    // Novo JWT com filial atualizada
+    const novoPayload: JwtPayload = {
+      ...usuario,
+      idFilial: vinculoFilial.filial.id,
+      nomeFilial: vinculoFilial.filial.nome,
+    }
+
+    return reply.send({ token: assinarToken(novoPayload), usuario: novoPayload })
+  })
+
   // GET /auth/me
   app.get('/auth/me', async (request, reply) => {
     const authHeader = request.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) {
-      return reply.status(401).send({ error: 'Token não fornecido' })
+      return reply.status(401).send({ error: 'Token nao fornecido' })
     }
     try {
       const payload = verificarToken(authHeader.slice(7))
@@ -181,7 +287,7 @@ export async function authRoutes(app: FastifyInstance) {
         where: { id: payload.sub },
         include: { organizacao: { select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true } } },
       })
-      if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuário não encontrado ou inativo' })
+      if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuario nao encontrado ou inativo' })
       return reply.send({
         id: usuario.id, nome: usuario.nome, email: usuario.email,
         login: usuario.login, perfil: usuario.perfil,
@@ -193,42 +299,42 @@ export async function authRoutes(app: FastifyInstance) {
         idGrupo: usuario.organizacao.idGrupo,
       })
     } catch {
-      return reply.status(401).send({ error: 'Token inválido ou expirado' })
+      return reply.status(401).send({ error: 'Token invalido ou expirado' })
     }
   })
 
   // PATCH /auth/senha
   app.patch('/auth/senha', async (request, reply) => {
     const authHeader = request.headers.authorization
-    if (!authHeader?.startsWith('Bearer ')) return reply.status(401).send({ error: 'Token não fornecido' })
+    if (!authHeader?.startsWith('Bearer ')) return reply.status(401).send({ error: 'Token nao fornecido' })
     const { senhaAtual, novaSenha } = request.body as { senhaAtual: string; novaSenha: string }
-    if (!senhaAtual || !novaSenha) return reply.status(400).send({ error: 'senhaAtual e novaSenha são obrigatórios' })
+    if (!senhaAtual || !novaSenha) return reply.status(400).send({ error: 'senhaAtual e novaSenha sao obrigatorios' })
     if (novaSenha.length < 6) return reply.status(400).send({ error: 'A nova senha deve ter ao menos 6 caracteres' })
     try {
       const payload = verificarToken(authHeader.slice(7))
       const usuario = await prisma.usuario.findUnique({ where: { id: payload.sub } })
-      if (!usuario || !usuario.senhaHash) return reply.status(404).send({ error: 'Usuário não encontrado' })
+      if (!usuario || !usuario.senhaHash) return reply.status(404).send({ error: 'Usuario nao encontrado' })
       if (!await bcrypt.compare(senhaAtual, usuario.senhaHash)) return reply.status(401).send({ error: 'Senha atual incorreta' })
       await prisma.usuario.update({ where: { id: payload.sub }, data: { senhaHash: await bcrypt.hash(novaSenha, 10) } })
       return reply.send({ ok: true })
     } catch {
-      return reply.status(401).send({ error: 'Token inválido ou expirado' })
+      return reply.status(401).send({ error: 'Token invalido ou expirado' })
     }
   })
 
   // POST /auth/admin/set-senha
   app.post('/auth/admin/set-senha', async (request, reply) => {
     const authHeader = request.headers.authorization
-    if (!authHeader?.startsWith('Bearer ')) return reply.status(401).send({ error: 'Token não fornecido' })
+    if (!authHeader?.startsWith('Bearer ')) return reply.status(401).send({ error: 'Token nao fornecido' })
     try {
       const payload = verificarToken(authHeader.slice(7))
       if (payload.perfil !== 'Admin' && payload.perfil !== 'Gestor') return reply.status(403).send({ error: 'Apenas administradores podem redefinir senhas' })
       const { idUsuario, novaSenha } = request.body as { idUsuario: string; novaSenha: string }
-      if (!idUsuario || !novaSenha || novaSenha.length < 6) return reply.status(400).send({ error: 'idUsuario e novaSenha (mín. 6 chars) são obrigatórios' })
+      if (!idUsuario || !novaSenha || novaSenha.length < 6) return reply.status(400).send({ error: 'idUsuario e novaSenha (min. 6 chars) sao obrigatorios' })
       await prisma.usuario.update({ where: { id: idUsuario }, data: { senhaHash: await bcrypt.hash(novaSenha, 10) } })
       return reply.send({ ok: true })
     } catch {
-      return reply.status(401).send({ error: 'Token inválido ou expirado' })
+      return reply.status(401).send({ error: 'Token invalido ou expirado' })
     }
   })
 }
