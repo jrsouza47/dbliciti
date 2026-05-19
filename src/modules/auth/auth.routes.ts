@@ -121,9 +121,10 @@ export async function authRoutes(app: FastifyInstance) {
         idFilialFinal   = fv?.id   ?? null
         nomeFilialFinal = fv?.nome ?? null
       } else {
-        // Retorna null — frontend vai pedir para escolher a filial
-        idFilialFinal   = null
-        nomeFilialFinal = null
+        // Com filiais: busca primeira filial vinculada ao usuario
+        const filialAtiva = await getPrimeiraFilialUsuario(usuario.id, org.id)
+        idFilialFinal   = filialAtiva?.id   ?? null
+        nomeFilialFinal = filialAtiva?.nome ?? null
       }
 
       const payload: JwtPayload = {
@@ -179,9 +180,10 @@ export async function authRoutes(app: FastifyInstance) {
       idFilialFinal   = fv?.id   ?? null
       nomeFilialFinal = fv?.nome ?? null
     } else {
-      // Com filiais: retorna null — frontend le do localStorage (ultima filial ativa)
-      idFilialFinal   = null
-      nomeFilialFinal = null
+      // Com filiais: busca primeira filial vinculada ao usuario
+      const filialAtiva = await getPrimeiraFilialUsuario(usuario.id, vinculo.organizacao.id)
+      idFilialFinal   = filialAtiva?.id   ?? null
+      nomeFilialFinal = filialAtiva?.nome ?? null
     }
 
     const payload: JwtPayload = {
