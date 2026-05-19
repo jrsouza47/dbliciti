@@ -109,6 +109,7 @@ export async function usuarioRoutes(app: FastifyInstance) {
         perfil: body.perfil,
         alcadaValor: body.alcadaValor ?? null,
         senhaHash,
+        trocarSenha: true,
       },
       select: {
         id: true,
@@ -165,7 +166,7 @@ export async function usuarioRoutes(app: FastifyInstance) {
 
     await prisma.usuario.update({
       where: { id },
-      data: { senhaHash },
+      data: { senhaHash, trocarSenha: true },
     })
 
     return reply.send({ senhaInicial })

@@ -203,6 +203,7 @@ export async function authRoutes(app: FastifyInstance) {
       usaGrupo: usaGrupo2,
       idFilial: idFilialFinal,
       nomeFilial: nomeFilialFinal,
+      trocarSenha: usuario.trocarSenha ?? false,
     }
 
     return reply.send({ token: assinarToken(payload), usuario: payload })
@@ -296,8 +297,9 @@ export async function authRoutes(app: FastifyInstance) {
       const usuario = await prisma.usuario.findUnique({ where: { id: payload.sub } })
       if (!usuario || !usuario.senhaHash) return reply.status(404).send({ error: 'Usuario nao encontrado' })
       if (!await bcrypt.compare(senhaAtual, usuario.senhaHash)) return reply.status(401).send({ error: 'Senha atual incorreta' })
-      await prisma.usuario.update({ where: { id: payload.sub }, data: { senhaHash: await bcrypt.hash(novaSenha, 10) } })
-      return reply.send({ ok: true })
+      await prisma.usuario.update({ where: { id: payload.sub }, data: { senhaHash: await bcrypt.hash(novaSenha, 10), trocarSenha: false } })
+      const novoPayload = { ...payload, trocarSenha: false }
+      return reply.send({ ok: true, token: assinarToken(novoPayload) })
     } catch {
       return reply.status(401).send({ error: 'Token invalido ou expirado' })
     }

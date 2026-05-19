@@ -172,6 +172,7 @@ model Usuario {
   nome          String
   email         String   @unique
   senhaHash     String?  @map("senha_hash")
+  trocarSenha   Boolean  @default(true) @map("trocar_senha")
   perfil        String
   alcadaValor   Decimal? @map("alcada_valor") @db.Decimal(15, 2)
   idSubstituto  String?  @map("id_substituto")
