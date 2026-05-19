@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const criarFilialSchema = z.object({
-  idOrganizacao:              z.string().uuid(),
+  idOrganizacao:              z.string().min(1),
   nome:                       z.string().min(2),
   cnpj:                       z.string().min(14).max(18),
   razaoSocial:                z.string().optional(),
