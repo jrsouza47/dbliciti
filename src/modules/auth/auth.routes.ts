@@ -145,6 +145,7 @@ export async function authRoutes(app: FastifyInstance) {
         usaGrupo: usaGrupo1,
         idFilial: idFilialFinal,
         nomeFilial: nomeFilialFinal,
+        trocarSenha: usuario.trocarSenha ?? false,
       }
 
       return reply.send({ token: assinarToken(payload), usuario: payload })
