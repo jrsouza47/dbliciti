@@ -11,6 +11,7 @@ import {
   atualizarOrganizacao,
   alterarStatusOrganizacao,
 } from './organizacao.service'
+import { verificarToken } from '../auth/auth.routes'
 
 export async function organizacaoRoutes(app: FastifyInstance) {
   // POST /organizacoes — Cadastrar
@@ -21,8 +22,24 @@ export async function organizacaoRoutes(app: FastifyInstance) {
   })
 
   // GET /organizacoes — Listar
-  app.get('/organizacoes', async (_request, reply) => {
-    return reply.send(await listarOrganizacoes())
+  // Admin/Administrador/Gestor veem todas; demais veem apenas a sua org
+  app.get('/organizacoes', async (request, reply) => {
+    const authHeader = request.headers.authorization
+    if (!authHeader?.startsWith('Bearer ')) {
+      return reply.status(401).send({ error: 'Token nao fornecido' })
+    }
+    try {
+      const payload = verificarToken(authHeader.slice(7))
+      const perfisAdmin = ['Admin', 'Administrador', 'Gestor']
+      if (perfisAdmin.includes(payload.perfil)) {
+        return reply.send(await listarOrganizacoes())
+      }
+      // Usuarios comuns: apenas a org deles
+      const org = await buscarOrganizacao(payload.idOrganizacao)
+      return reply.send(org ? [org] : [])
+    } catch {
+      return reply.status(401).send({ error: 'Token invalido ou expirado' })
+    }
   })
 
   // GET /organizacoes/:id — Buscar
