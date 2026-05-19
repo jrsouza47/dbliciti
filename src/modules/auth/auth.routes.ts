@@ -307,7 +307,8 @@ export async function authRoutes(app: FastifyInstance) {
       if (!usuario || !usuario.senhaHash) return reply.status(404).send({ error: 'Usuario nao encontrado' })
       if (!await bcrypt.compare(senhaAtual, usuario.senhaHash)) return reply.status(401).send({ error: 'Senha atual incorreta' })
       await prisma.usuario.update({ where: { id: payload.sub }, data: { senhaHash: await bcrypt.hash(novaSenha, 10), trocarSenha: false } })
-      const novoPayload = { ...payload, trocarSenha: false }
+      const { exp, iat, ...payloadLimpo } = payload as any
+      const novoPayload = { ...payloadLimpo, trocarSenha: false }
       return reply.send({ ok: true, token: assinarToken(novoPayload) })
     } catch (err: any) {
       return reply.status(500).send({ error: err?.message ?? 'Erro interno ao trocar senha' })
