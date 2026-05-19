@@ -294,16 +294,23 @@ export async function authRoutes(app: FastifyInstance) {
     const { senhaAtual, novaSenha } = request.body as { senhaAtual: string; novaSenha: string }
     if (!senhaAtual || !novaSenha) return reply.status(400).send({ error: 'senhaAtual e novaSenha sao obrigatorios' })
     if (novaSenha.length < 6) return reply.status(400).send({ error: 'A nova senha deve ter ao menos 6 caracteres' })
+
+    let payload: JwtPayload
     try {
-      const payload = verificarToken(authHeader.slice(7))
+      payload = verificarToken(authHeader.slice(7))
+    } catch {
+      return reply.status(401).send({ error: 'Token invalido ou expirado' })
+    }
+
+    try {
       const usuario = await prisma.usuario.findUnique({ where: { id: payload.sub } })
       if (!usuario || !usuario.senhaHash) return reply.status(404).send({ error: 'Usuario nao encontrado' })
       if (!await bcrypt.compare(senhaAtual, usuario.senhaHash)) return reply.status(401).send({ error: 'Senha atual incorreta' })
       await prisma.usuario.update({ where: { id: payload.sub }, data: { senhaHash: await bcrypt.hash(novaSenha, 10), trocarSenha: false } })
       const novoPayload = { ...payload, trocarSenha: false }
       return reply.send({ ok: true, token: assinarToken(novoPayload) })
-    } catch {
-      return reply.status(401).send({ error: 'Token invalido ou expirado' })
+    } catch (err: any) {
+      return reply.status(500).send({ error: err?.message ?? 'Erro interno ao trocar senha' })
     }
   })
 
