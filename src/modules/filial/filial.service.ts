@@ -60,7 +60,6 @@ export async function listarFiliaisUsuario(idUsuario: string, idOrganizacao: str
   return vinculos.map((v) => ({
     ...v.filial,
     cnpj: formatarCnpj(v.filial.cnpj),
-    filialAtiva: v.filialAtiva,
   }))
 }
 
