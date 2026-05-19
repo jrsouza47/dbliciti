@@ -25,6 +25,7 @@ export interface JwtPayload {
   usaGrupo: boolean       // true quando org pertence a um grupo empresarial
   idFilial: string | null
   nomeFilial: string | null
+  trocarSenha: boolean
 }
 
 function assinarToken(payload: JwtPayload): string {
