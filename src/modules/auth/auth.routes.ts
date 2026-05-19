@@ -35,23 +35,12 @@ export function verificarToken(token: string): JwtPayload {
   return jwt.verify(token, JWT_SECRET) as JwtPayload
 }
 
-// Helper: busca filial ativa do usuario no banco
-async function getFilialAtivaDoBanco(
+// Helper: busca primeira filial vinculada ao usuario nessa org
+async function getPrimeiraFilialUsuario(
   idUsuario: string,
   idOrganizacao: string,
 ): Promise<{ id: string; nome: string } | null> {
-  const vinculoAtivo = await prisma.usuarioFilial.findFirst({
-    where: {
-      idUsuario,
-      filialAtiva: true,
-      filial: { idOrganizacao, isVirtual: false, ativo: true },
-    },
-    include: { filial: { select: { id: true, nome: true } } },
-  })
-  if (vinculoAtivo) return vinculoAtivo.filial
-
-  // Fallback: primeira filial vinculada
-  const primeiro = await prisma.usuarioFilial.findFirst({
+  const vinculo = await prisma.usuarioFilial.findFirst({
     where: {
       idUsuario,
       filial: { idOrganizacao, isVirtual: false, ativo: true },
@@ -59,7 +48,7 @@ async function getFilialAtivaDoBanco(
     include: { filial: { select: { id: true, nome: true } } },
     orderBy: { criadoEm: 'asc' },
   })
-  return primeiro?.filial ?? null
+  return vinculo?.filial ?? null
 }
 
 export async function authRoutes(app: FastifyInstance) {
@@ -132,9 +121,9 @@ export async function authRoutes(app: FastifyInstance) {
         idFilialFinal   = fv?.id   ?? null
         nomeFilialFinal = fv?.nome ?? null
       } else {
-        const filialAtiva = await getFilialAtivaDoBanco(usuario.id, org.id)
-        idFilialFinal   = filialAtiva?.id   ?? null
-        nomeFilialFinal = filialAtiva?.nome ?? null
+        // Retorna null — frontend vai pedir para escolher a filial
+        idFilialFinal   = null
+        nomeFilialFinal = null
       }
 
       const payload: JwtPayload = {
@@ -190,9 +179,9 @@ export async function authRoutes(app: FastifyInstance) {
       idFilialFinal   = fv?.id   ?? null
       nomeFilialFinal = fv?.nome ?? null
     } else {
-      const filialAtiva = await getFilialAtivaDoBanco(usuario.id, vinculo.organizacao.id)
-      idFilialFinal   = filialAtiva?.id   ?? null
-      nomeFilialFinal = filialAtiva?.nome ?? null
+      // Com filiais: retorna null — frontend le do localStorage (ultima filial ativa)
+      idFilialFinal   = null
+      nomeFilialFinal = null
     }
 
     const payload: JwtPayload = {
@@ -218,7 +207,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/trocar-filial
-  // Troca filial ativa, persiste no banco, devolve novo JWT
+  // Valida acesso, devolve novo JWT com filial atualizada (persistencia via localStorage no frontend)
   app.post('/auth/trocar-filial', async (request, reply) => {
     const authHeader = request.headers.authorization
     if (!authHeader?.startsWith('Bearer ')) {
@@ -241,7 +230,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'idFilial e obrigatorio' })
     }
 
-    // Valida acesso do usuario a essa filial
+    // Valida que o usuario tem vinculo com essa filial
     const vinculoFilial = await prisma.usuarioFilial.findFirst({
       where: {
         idUsuario: usuario.sub,
@@ -255,17 +244,7 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Usuario nao tem acesso a essa filial' })
     }
 
-    // Persiste: desativa todas, ativa a escolhida
-    await prisma.usuarioFilial.updateMany({
-      where: { idUsuario: usuario.sub },
-      data: { filialAtiva: false },
-    })
-    await prisma.usuarioFilial.update({
-      where: { id: vinculoFilial.id },
-      data: { filialAtiva: true },
-    })
-
-    // Novo JWT com filial atualizada
+    // Novo JWT com filial atualizada (sem alteracao no banco)
     const novoPayload: JwtPayload = {
       ...usuario,
       idFilial: vinculoFilial.filial.id,
