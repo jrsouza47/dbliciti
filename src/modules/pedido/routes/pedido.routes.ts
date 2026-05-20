@@ -21,6 +21,11 @@ import {
   atualizarPedido,
   voltarRascunho,
   copiarPedido,
+  devolverPedido,
+  uploadDocumento,
+  listarDocumentos,
+  downloadDocumento,
+  excluirDocumento,
 } from '../pedido.service'
 import prisma from '../../../shared/prisma'
 
@@ -185,5 +190,75 @@ export async function pedidoRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const data = cancelarPedidoSchema.parse(request.body)
     return cancelarPedido(id, data)
+  })
+
+  // PATCH /pedidos/:id/devolver — Devolve para ajuste (status 12)
+  app.patch('/pedidos/:id/devolver', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idUsuario, pendencias } = request.body as { idUsuario: string; pendencias: string }
+    if (!idUsuario || !pendencias) {
+      return reply.status(400).send({ error: 'idUsuario e pendencias sao obrigatorios' })
+    }
+    try {
+      return await devolverPedido(id, { idUsuario, pendencias })
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message })
+    }
+  })
+
+  // GET /pedidos/:id/documentos — Lista documentos do pedido
+  app.get('/pedidos/:id/documentos', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    return listarDocumentos(id)
+  })
+
+  // POST /pedidos/:id/documentos — Upload de documento
+  app.post('/pedidos/:id/documentos', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    try {
+      const data = await request.file()
+      if (!data) return reply.status(400).send({ error: 'Arquivo nao enviado' })
+
+      const { tipo, idUsuario } = request.query as { tipo: string; idUsuario: string }
+      if (!tipo || !idUsuario) {
+        return reply.status(400).send({ error: 'tipo e idUsuario sao obrigatorios' })
+      }
+
+      const buffer = await data.toBuffer()
+      const doc = await uploadDocumento({
+        idPedido: id,
+        tipo,
+        nome: data.filename,
+        tamanho: buffer.length,
+        mimeType: data.mimetype,
+        dados: buffer,
+        idUsuario,
+      })
+      return reply.status(201).send(doc)
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message ?? 'Erro ao fazer upload' })
+    }
+  })
+
+  // GET /pedidos/documentos/:idDoc — Download de documento
+  app.get('/pedidos/documentos/:idDoc', async (request, reply) => {
+    const { idDoc } = request.params as { idDoc: string }
+    const doc = await downloadDocumento(idDoc)
+    if (!doc) return reply.status(404).send({ error: 'Documento nao encontrado' })
+    return reply
+      .header('Content-Type', doc.mimeType)
+      .header('Content-Disposition', `attachment; filename="${doc.nome}"`)
+      .send(doc.dados)
+  })
+
+  // DELETE /pedidos/documentos/:idDoc — Excluir documento
+  app.delete('/pedidos/documentos/:idDoc', async (request, reply) => {
+    const { idDoc } = request.params as { idDoc: string }
+    try {
+      await excluirDocumento(idDoc)
+      return reply.send({ ok: true })
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message })
+    }
   })
 }

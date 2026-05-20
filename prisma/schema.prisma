@@ -409,6 +409,7 @@ model Pedido {
   aprovacoes  AprovacaoPedido[]
   auditorias  AuditoriaPedido[]
   cotacoes    Cotacao[]
+  documentos  DocumentoPedido[]
 
   @@unique([idOrganizacao, numero])
   @@map("pedido")
@@ -461,6 +462,24 @@ model AuditoriaPedido {
 
   @@map("auditoria_pedido")
 }
+
+model DocumentoPedido {
+  id          String   @id @default(uuid())
+  idPedido    String   @map("id_pedido")
+  tipo        String   // DFD | ETP | TR | PESQUISA_PRECO | COMPLEMENTAR
+  nome        String
+  tamanho     Int
+  mimeType    String   @map("mime_type")
+  dados       Bytes
+  idUsuario   String   @map("id_usuario")
+  criadoEm   DateTime @default(now()) @map("criado_em")
+
+  pedido  Pedido  @relation(fields: [idPedido], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [idUsuario], references: [id])
+
+  @@map("documento_pedido")
+}
+
 
 // ─────────────────────────────────────────────
 // M5 — Fornecedores

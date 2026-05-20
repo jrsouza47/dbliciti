@@ -417,3 +417,93 @@ export async function cancelarPedido(id: string, data: CancelarPedidoInput) {
 
   return pedidoAtualizado
 }
+
+// ── Devolver pedido para ajuste (3,4,5 → 12) ─────────────────────────────────
+// Área de Compras/CPL devolve com lista de pendências
+export async function devolverPedido(id: string, data: { idUsuario: string; pendencias: string }) {
+  const pedido = await prisma.pedido.findUnique({ where: { id } })
+  if (!pedido) throw new Error('Pedido não encontrado')
+
+  const statusPermitidos = [2, 3, 4, 5]
+  if (!statusPermitidos.includes(pedido.status)) {
+    throw new Error('Pedido não pode ser devolvido neste status')
+  }
+
+  const pedidoAtualizado = await prisma.pedido.update({
+    where: { id },
+    data: { status: 12 },
+  })
+
+  await prisma.auditoriaPedido.create({
+    data: {
+      idPedido: id,
+      acao: 'Devolvido para ajuste',
+      valorAntes: String(pedido.status),
+      valorDepois: data.pendencias,
+      usuarioId: data.idUsuario,
+      campo: 'pendencias',
+    },
+  })
+
+  return pedidoAtualizado
+}
+
+// ── Upload de documento ───────────────────────────────────────────────────────
+export async function uploadDocumento(data: {
+  idPedido: string
+  tipo: string
+  nome: string
+  tamanho: number
+  mimeType: string
+  dados: Buffer
+  idUsuario: string
+}) {
+  return prisma.documentoPedido.create({
+    data: {
+      idPedido: data.idPedido,
+      tipo: data.tipo,
+      nome: data.nome,
+      tamanho: data.tamanho,
+      mimeType: data.mimeType,
+      dados: data.dados,
+      idUsuario: data.idUsuario,
+    },
+    select: {
+      id: true,
+      tipo: true,
+      nome: true,
+      tamanho: true,
+      mimeType: true,
+      idUsuario: true,
+      criadoEm: true,
+    },
+  })
+}
+
+// ── Listar documentos do pedido ───────────────────────────────────────────────
+export async function listarDocumentos(idPedido: string) {
+  return prisma.documentoPedido.findMany({
+    where: { idPedido },
+    select: {
+      id: true,
+      tipo: true,
+      nome: true,
+      tamanho: true,
+      mimeType: true,
+      idUsuario: true,
+      criadoEm: true,
+      usuario: { select: { nome: true } },
+    },
+    orderBy: { criadoEm: 'asc' },
+  })
+}
+
+// ── Download de documento ─────────────────────────────────────────────────────
+export async function downloadDocumento(id: string) {
+  return prisma.documentoPedido.findUnique({ where: { id } })
+}
+
+// ── Excluir documento ─────────────────────────────────────────────────────────
+export async function excluirDocumento(id: string) {
+  return prisma.documentoPedido.delete({ where: { id } })
+}
