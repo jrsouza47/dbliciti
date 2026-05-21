@@ -127,6 +127,8 @@ model Organizacao {
   logsFracionamento     LogFracionamento[]
   estruturasHierarquia  EstruturaHierarquia[]
 
+  tiposDocumento TipoDocumento[]
+
   @@map("organizacao")
 }
 
@@ -877,4 +879,21 @@ model ItemCategoria {
   categoria Categoria    @relation(fields: [idCategoria], references: [id])
 
   @@map("item_categoria")
+}
+
+model TipoDocumento {
+  id             String   @id @default(uuid())
+  idOrganizacao  String   @map("id_organizacao")
+  nome           String
+  sigla          String
+  obrigatorio    Boolean  @default(false)
+  ativo          Boolean  @default(true)
+  ordem          Int      @default(0)
+  criadoEm      DateTime @default(now()) @map("criado_em")
+  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
+
+  organizacao Organizacao @relation(fields: [idOrganizacao], references: [id], onDelete: Cascade)
+
+  @@unique([idOrganizacao, sigla])
+  @@map("tipo_documento")
 }

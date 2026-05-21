@@ -26,6 +26,7 @@ import { alcadaRoutes } from './modules/alcada/alcada.routes'
 import { notificacoesRoutes } from './modules/notificacoes/notificacoes.routes'
 import { filialRoutes } from './modules/filial/filial.routes'
 import { grupoRoutes } from './modules/grupo/grupo.routes'
+import { tipoDocumentoRoutes } from './modules/tipo-documento/tipo-documento.routes'
 
 const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
@@ -71,6 +72,7 @@ app.register(alcadaRoutes)
 app.register(notificacoesRoutes)
 app.register(filialRoutes)
 app.register(grupoRoutes)
+app.register(tipoDocumentoRoutes)
 
 const start = async () => {
   try {
