@@ -164,7 +164,7 @@ export async function receberSolicitacao(input: ReceberSolicitacaoInput) {
   }
 
   const exigeMatrizRisco = classificarContratacaoComplexa({
-    valorTotal:         pedido.valorTotal as number | null,
+    valorTotal:         Number(pedido.valorTotal ?? 0),
     tipoPedido:         (pedido as any).tipoPedido ?? null,
     modalidadeSugerida: (pedido as any).modalidadeSugerida ?? null,
   })
@@ -228,7 +228,7 @@ export async function salvarChecklist(input: SalvarChecklistInput) {
     throw new Error('Pedido não está em análise CPL no momento')
   }
 
-  const checklistAtual = (analise.checklist ?? {}) as Partial<ChecklistAnaliseCpl>
+  const checklistAtual = (analise.checklist && typeof analise.checklist === "object" && !Array.isArray(analise.checklist) ? analise.checklist : {}) as Partial<ChecklistAnaliseCpl>
   const checklistAtualizado = { ...checklistAtual, ...input.checklist }
 
   const analiseAtualizada = await prisma.analiseCpl.update({
@@ -277,8 +277,9 @@ export async function aprovarAnaliseInicial(input: AprovarAnaliseInput) {
 
   if (!analise) throw new Error('Registro de análise CPL não encontrado')
 
+  const checklistAtual = (analise.checklist && typeof analise.checklist === "object" && !Array.isArray(analise.checklist)) ? analise.checklist as Record<string, unknown> : {}
   const checklistFinal = input.checklist
-    ? { ...(analise.checklist ?? {}), ...input.checklist }
+    ? { ...checklistAtual, ...input.checklist }
     : analise.checklist
 
   const [analiseAtualizada] = await prisma.$transaction([
@@ -539,7 +540,7 @@ export async function obterDetalheAnalise(idPedido: string, idOrganizacao: strin
   const analiseAtual = pedido.analisesCpl[0] ?? null
   const exigeMatrizRisco = analiseAtual?.exigeMatrizRisco ??
     classificarContratacaoComplexa({
-      valorTotal:         pedido.valorTotal as number | null,
+      valorTotal:         Number(pedido.valorTotal ?? 0),
       tipoPedido:         (pedido as any).tipoPedido,
       modalidadeSugerida: (pedido as any).modalidadeSugerida,
     })
