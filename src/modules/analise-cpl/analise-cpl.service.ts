@@ -87,7 +87,7 @@ function calcularSlaPrazo(diasUteis: number): Date {
 }
 
 function classificarContratacaoComplexa(pedido: {
-  valorEstimado?: number | null
+  valorTotal?: number | null
   tipoPedido?: string | null
   modalidadeSugerida?: string | null
 }): boolean {
@@ -95,7 +95,7 @@ function classificarContratacaoComplexa(pedido: {
   // Implementados: valor alto, tipo de objeto, modalidade prevista
   const VALOR_LIMITE_COMPLEXIDADE = 1_000_000 // R$ 1 milhão
 
-  if (pedido.valorEstimado && pedido.valorEstimado >= VALOR_LIMITE_COMPLEXIDADE) return true
+  if (pedido.valorTotal && pedido.valorTotal >= VALOR_LIMITE_COMPLEXIDADE) return true
 
   const tiposComplexos = ['OBRA', 'SERVICO_TI', 'SERVICO_CONTINUADO', 'CONCESSAO']
   if (pedido.tipoPedido && tiposComplexos.includes(pedido.tipoPedido)) return true
@@ -164,7 +164,7 @@ export async function receberSolicitacao(input: ReceberSolicitacaoInput) {
   }
 
   const exigeMatrizRisco = classificarContratacaoComplexa({
-    valorEstimado:      pedido.valorEstimado as number | null,
+    valorTotal:         pedido.valorTotal as number | null,
     tipoPedido:         (pedido as any).tipoPedido ?? null,
     modalidadeSugerida: (pedido as any).modalidadeSugerida ?? null,
   })
@@ -539,7 +539,7 @@ export async function obterDetalheAnalise(idPedido: string, idOrganizacao: strin
   const analiseAtual = pedido.analisesCpl[0] ?? null
   const exigeMatrizRisco = analiseAtual?.exigeMatrizRisco ??
     classificarContratacaoComplexa({
-      valorEstimado:      pedido.valorEstimado as number | null,
+      valorTotal:         pedido.valorTotal as number | null,
       tipoPedido:         (pedido as any).tipoPedido,
       modalidadeSugerida: (pedido as any).modalidadeSugerida,
     })
