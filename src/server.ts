@@ -27,6 +27,7 @@ import { notificacoesRoutes } from './modules/notificacoes/notificacoes.routes'
 import { filialRoutes } from './modules/filial/filial.routes'
 import { grupoRoutes } from './modules/grupo/grupo.routes'
 import { tipoDocumentoRoutes } from './modules/tipo-documento/tipo-documento.routes'
+import { analiseCplRoutes } from './modules/analise-cpl/analise-cpl.routes'
 
 const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
@@ -73,6 +74,7 @@ app.register(notificacoesRoutes)
 app.register(filialRoutes)
 app.register(grupoRoutes)
 app.register(tipoDocumentoRoutes)
+app.register(analiseCplRoutes)
 
 const start = async () => {
   try {

@@ -205,6 +205,7 @@ model Usuario {
   alcadas                     AlcadaUsuario[]         @relation("AlcadaUsuario")
   filiaisVinculadas           UsuarioFilial[]
   documentosPedido            DocumentoPedido[]
+  analisesComoAnalista        AnaliseCpl[]      @relation("AnalistaCpl")
 
   @@map("usuario")
 }
@@ -413,6 +414,7 @@ model Pedido {
   auditorias  AuditoriaPedido[]
   cotacoes    Cotacao[]
   documentos  DocumentoPedido[]
+  analisesCpl AnaliseCpl[]
 
   @@unique([idOrganizacao, numero])
   @@map("pedido")
@@ -896,4 +898,64 @@ model TipoDocumento {
 
   @@unique([idOrganizacao, sigla])
   @@map("tipo_documento")
+}
+
+// ============================================================
+// SCHEMA PRISMA — Módulo 2: Análise Inicial (Compras / CPL)
+// Adicionar ao schema.prisma existente do projeto dbliciti
+// ============================================================
+
+// ── Tabela de motivos de devolução / reprovação ──────────────
+model MotivoAnaliseCpl {
+  id         Int            @id @default(autoincrement())
+  codigo     String         @unique
+  descricao  String
+  tipo       String         // 'DEVOLUCAO' | 'REPROVACAO' | 'AMBOS'
+  ativo      Boolean        @default(true)
+  ordem      Int            @default(0)
+  analises   AnaliseCpl[]
+
+  @@map("motivo_analise_cpl")
+}
+
+// ── Análise CPL principal ─────────────────────────────────────
+// Uma análise por ciclo. Cada devolução cria nova versão.
+model AnaliseCpl {
+  id               String    @id @default(uuid())
+  idPedido         String    @map("id_pedido")
+  idOrganizacao    String    @map("id_organizacao")
+  idAnalista       String?   @map("id_analista")
+  versao           Int       @default(1)
+  statusAnterior   Int?      @map("status_anterior")
+  statusResultado  Int?      @map("status_resultado")
+  parecerTecnico   String?   @map("parecer_tecnico")
+  idMotivo         Int?      @map("id_motivo")
+  motivoTexto      String?   @map("motivo_texto")
+  riscosObservados String?   @map("riscos_observados")
+  exigeMatrizRisco Boolean   @default(false) @map("exige_matriz_risco")
+
+  // Checklist dos 6 critérios de decisão (JSON flexível)
+  // Pendência TERRACAP item 3: implementado como JSON para suportar
+  // tanto checklist formal quanto orientação ao analista.
+  // Estrutura: { conformidadeDocumental: boolean|null, qualidadeTR: boolean|null,
+  //   coerenciaEstimativa: boolean|null, enquadramentoLegal: boolean|null,
+  //   viabilidade: boolean|null, adequacaoPCA: boolean|null,
+  //   riscoContratacao: 'BAIXO'|'MEDIO'|'ALTO'|null }
+  checklist        Json?
+
+  slaPrazo         DateTime? @map("sla_prazo")
+  dataRecebimento  DateTime? @map("data_recebimento")
+  dataConclusao    DateTime? @map("data_conclusao")
+  emAtraso         Boolean   @default(false) @map("em_atraso")
+  criadoEm        DateTime  @default(now()) @map("criado_em")
+  atualizadoEm    DateTime  @updatedAt @map("atualizado_em")
+
+  pedido   Pedido            @relation(fields: [idPedido], references: [id], onDelete: Cascade)
+  analista Usuario?          @relation("AnalistaCpl", fields: [idAnalista], references: [id])
+  motivo   MotivoAnaliseCpl? @relation(fields: [idMotivo], references: [id])
+
+  @@index([idPedido])
+  @@index([idOrganizacao])
+  @@index([idAnalista])
+  @@map("analise_cpl")
 }
