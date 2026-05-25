@@ -1,293 +1,118 @@
-// ============================================================
-// ROUTES — Módulo 2: Análise Inicial (Compras / CPL)
-// backend/src/modules/analise-cpl/analise-cpl.routes.ts
-// ============================================================
-
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { z } from 'zod'
+import { FastifyInstance } from 'fastify'
 import {
-  receberSolicitacao,
-  salvarChecklist,
-  aprovarAnaliseInicial,
-  devolverParaAjuste,
-  reprovarSolicitacao,
-  obterFilaCpl,
-  obterDetalheAnalise,
-  listarMotivos,
-  verificarAtrasos,
+  receberSolicitacao, salvarChecklist, aprovarAnaliseInicial,
+  devolverParaAjuste, reprovarSolicitacao, obterFilaCpl,
+  obterDetalheAnalise, listarMotivos, verificarAtrasos,
 } from './analise-cpl.service'
 
-// ── Schemas de validação (Zod) ───────────────────────────────
-const checklistSchema = z.object({
-  conformidadeDocumental: z.boolean().nullable().optional(),
-  qualidadeTR:            z.boolean().nullable().optional(),
-  coerenciaEstimativa:    z.boolean().nullable().optional(),
-  enquadramentoLegal:     z.boolean().nullable().optional(),
-  viabilidade:            z.boolean().nullable().optional(),
-  adequacaoPCA:           z.boolean().nullable().optional(),
-  riscoContratacao:       z.enum(['BAIXO', 'MEDIO', 'ALTO']).nullable().optional(),
-})
-
-const idParamSchema = z.object({
-  id: z.string().uuid('ID do pedido inválido'),
-})
-
-const receberSchema = z.object({
-  idAnalista: z.string().uuid().optional(), // se omitido, usa o usuário do token
-})
-
-const checklistBodySchema = z.object({
-  checklist:        checklistSchema,
-  riscosObservados: z.string().max(2000).optional(),
-})
-
-const aprovarSchema = z.object({
-  parecerTecnico: z.string().min(20, 'Parecer técnico deve ter pelo menos 20 caracteres').max(5000),
-  checklist:      checklistSchema.optional(),
-})
-
-const devolverSchema = z.object({
-  idMotivo:    z.number().int().positive(),
-  motivoTexto: z.string().max(1000).optional(),
-  pendencias:  z.string().min(10, 'Descreva as pendências (mínimo 10 caracteres)').max(5000),
-})
-
-const reprovarSchema = z.object({
-  idMotivo:      z.number().int().positive(),
-  motivoTexto:   z.string().max(1000).optional(),
-  justificativa: z.string().min(20, 'Justificativa deve ter pelo menos 20 caracteres').max(5000),
-})
-
-const filaQuerySchema = z.object({
-  idAnalista: z.string().uuid().optional(),
-  emAtraso:   z.coerce.boolean().optional(),
-  urgente:    z.coerce.boolean().optional(),
-})
-
-// ── Helper: extrai dados do token JWT ───────────────────────
-function getTokenData(request: FastifyRequest) {
-  const user = (request as any).user as {
-    sub:           string
-    idOrganizacao: string
-    perfil:        string
-  }
-  return user
-}
-
-// ── Registro das rotas ────────────────────────────────────────
 export async function analiseCplRoutes(app: FastifyInstance) {
 
-  // ── GET /analise-cpl/motivos ─────────────────────────────
-  // Lista motivos predefinidos de devolução e/ou reprovação
-  app.get('/analise-cpl/motivos', async (request: FastifyRequest, reply: FastifyReply) => {
+  // GET /analise-cpl/motivos?tipo=
+  app.get('/analise-cpl/motivos', async (request, reply) => {
     const { tipo } = request.query as { tipo?: 'DEVOLUCAO' | 'REPROVACAO' }
-
-    const motivos = await listarMotivos(tipo)
-    return reply.send({ motivos })
-  })
-
-  // ── GET /analise-cpl/fila ────────────────────────────────
-  // Fila de pedidos aguardando análise da CPL
-  app.get('/analise-cpl/fila', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { idOrganizacao } = getTokenData(request)
-
-    const query = filaQuerySchema.safeParse(request.query)
-    if (!query.success) {
-      return reply.status(400).send({ erro: query.error.issues })
-    }
-
-    const fila = await obterFilaCpl(idOrganizacao, query.data)
-    return reply.send({ total: fila.length, pedidos: fila })
-  })
-
-  // ── GET /analise-cpl/:id ─────────────────────────────────
-  // Detalhe completo de um pedido para a tela de análise CPL
-  app.get('/analise-cpl/:id', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { idOrganizacao } = getTokenData(request)
-
-    const param = idParamSchema.safeParse(request.params)
-    if (!param.success) {
-      return reply.status(400).send({ erro: 'ID de pedido inválido' })
-    }
-
     try {
-      const detalhe = await obterDetalheAnalise(param.data.id, idOrganizacao)
+      const motivos = await listarMotivos(tipo)
+      return reply.send({ motivos })
+    } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
+  })
+
+  // GET /analise-cpl/fila?idOrganizacao=&urgente=&emAtraso=&idAnalista=
+  app.get('/analise-cpl/fila', async (request, reply) => {
+    const { idOrganizacao, urgente, emAtraso, idAnalista } = request.query as {
+      idOrganizacao: string; urgente?: string; emAtraso?: string; idAnalista?: string
+    }
+    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    try {
+      const pedidos = await obterFilaCpl(idOrganizacao, {
+        idAnalista,
+        emAtraso: emAtraso === 'true' ? true : undefined,
+        urgente:  urgente  === 'true' ? true : undefined,
+      })
+      return reply.send({ total: pedidos.length, pedidos })
+    } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
+  })
+
+  // GET /analise-cpl/:id?idOrganizacao=
+  app.get('/analise-cpl/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    try {
+      const detalhe = await obterDetalheAnalise(id, idOrganizacao)
       return reply.send(detalhe)
-    } catch (err: any) {
-      return reply.status(404).send({ erro: err.message })
-    }
+    } catch (err: any) { return reply.status(404).send({ erro: err.message }) }
   })
 
-  // ── POST /analise-cpl/:id/receber ────────────────────────
-  // CPL recebe o pedido e inicia análise formal (status 2 → 3)
-  app.post('/analise-cpl/:id/receber', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { sub, idOrganizacao } = getTokenData(request)
-
-    const param = idParamSchema.safeParse(request.params)
-    if (!param.success) {
-      return reply.status(400).send({ erro: 'ID de pedido inválido' })
-    }
-
-    const body = receberSchema.safeParse(request.body)
-    if (!body.success) {
-      return reply.status(400).send({ erro: body.error.issues })
-    }
-
+  // POST /analise-cpl/:id/receber
+  app.post('/analise-cpl/:id/receber', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao, idAnalista } = request.body as { idOrganizacao: string; idAnalista: string }
+    if (!idOrganizacao || !idAnalista) return reply.status(400).send({ erro: 'idOrganizacao e idAnalista obrigatorios' })
     try {
-      const resultado = await receberSolicitacao({
-        idPedido:      param.data.id,
-        idOrganizacao,
-        idAnalista:    body.data.idAnalista ?? sub,
-      })
+      const resultado = await receberSolicitacao({ idPedido: id, idOrganizacao, idAnalista })
       return reply.status(201).send(resultado)
-    } catch (err: any) {
-      const status = err.message.includes('permissão') ? 403
-                   : err.message.includes('não encontrado') ? 404
-                   : 400
-      return reply.status(status).send({ erro: err.message })
-    }
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
-  // ── PUT /analise-cpl/:id/checklist ───────────────────────
-  // Salva progresso do checklist de análise (sem encerrar)
-  app.put('/analise-cpl/:id/checklist', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { sub, idOrganizacao } = getTokenData(request)
-
-    const param = idParamSchema.safeParse(request.params)
-    if (!param.success) {
-      return reply.status(400).send({ erro: 'ID de pedido inválido' })
+  // PUT /analise-cpl/:id/checklist
+  app.put('/analise-cpl/:id/checklist', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao, idAnalista, checklist, riscosObservados } = request.body as {
+      idOrganizacao: string; idAnalista: string; checklist: object; riscosObservados?: string
     }
-
-    const body = checklistBodySchema.safeParse(request.body)
-    if (!body.success) {
-      return reply.status(400).send({ erro: body.error.issues })
-    }
-
+    if (!idOrganizacao || !idAnalista) return reply.status(400).send({ erro: 'idOrganizacao e idAnalista obrigatorios' })
     try {
-      const analise = await salvarChecklist({
-        idPedido:         param.data.id,
-        idOrganizacao,
-        idAnalista:       sub,
-        checklist:        body.data.checklist,
-        riscosObservados: body.data.riscosObservados,
-      })
+      const analise = await salvarChecklist({ idPedido: id, idOrganizacao, idAnalista, checklist, riscosObservados })
       return reply.send({ analise })
-    } catch (err: any) {
-      const status = err.message.includes('permissão') ? 403
-                   : err.message.includes('não encontrado') ? 404
-                   : 400
-      return reply.status(status).send({ erro: err.message })
-    }
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
-  // ── POST /analise-cpl/:id/aprovar ────────────────────────
-  // Aprova a análise inicial (status 3 → 5), encaminha para M3
-  app.post('/analise-cpl/:id/aprovar', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { sub, idOrganizacao } = getTokenData(request)
-
-    const param = idParamSchema.safeParse(request.params)
-    if (!param.success) {
-      return reply.status(400).send({ erro: 'ID de pedido inválido' })
+  // POST /analise-cpl/:id/aprovar
+  app.post('/analise-cpl/:id/aprovar', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao, idAnalista, parecerTecnico, checklist } = request.body as {
+      idOrganizacao: string; idAnalista: string; parecerTecnico: string; checklist?: object
     }
-
-    const body = aprovarSchema.safeParse(request.body)
-    if (!body.success) {
-      return reply.status(400).send({ erro: body.error.issues })
-    }
-
+    if (!idOrganizacao || !idAnalista || !parecerTecnico) return reply.status(400).send({ erro: 'idOrganizacao, idAnalista e parecerTecnico obrigatorios' })
     try {
-      const analise = await aprovarAnaliseInicial({
-        idPedido:       param.data.id,
-        idOrganizacao,
-        idAnalista:     sub,
-        parecerTecnico: body.data.parecerTecnico,
-        checklist:      body.data.checklist,
-      })
-      return reply.send({ analise, mensagem: 'Análise aprovada — encaminhada para Definição da Contratação' })
-    } catch (err: any) {
-      const status = err.message.includes('permissão') ? 403
-                   : err.message.includes('não encontrado') ? 404
-                   : 400
-      return reply.status(status).send({ erro: err.message })
-    }
+      const analise = await aprovarAnaliseInicial({ idPedido: id, idOrganizacao, idAnalista, parecerTecnico, checklist })
+      return reply.send({ analise, mensagem: 'Analise aprovada — encaminhada para Definicao da Contratacao' })
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
-  // ── POST /analise-cpl/:id/devolver ──────────────────────
-  // Devolve pedido para ajuste (status 3 → 12)
-  app.post('/analise-cpl/:id/devolver', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { sub, idOrganizacao } = getTokenData(request)
-
-    const param = idParamSchema.safeParse(request.params)
-    if (!param.success) {
-      return reply.status(400).send({ erro: 'ID de pedido inválido' })
+  // POST /analise-cpl/:id/devolver
+  app.post('/analise-cpl/:id/devolver', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao, idAnalista, idMotivo, pendencias, motivoTexto } = request.body as {
+      idOrganizacao: string; idAnalista: string; idMotivo: number; pendencias: string; motivoTexto?: string
     }
-
-    const body = devolverSchema.safeParse(request.body)
-    if (!body.success) {
-      return reply.status(400).send({ erro: body.error.issues })
-    }
-
+    if (!idOrganizacao || !idAnalista || !idMotivo || !pendencias) return reply.status(400).send({ erro: 'idOrganizacao, idAnalista, idMotivo e pendencias obrigatorios' })
     try {
-      const analise = await devolverParaAjuste({
-        idPedido:      param.data.id,
-        idOrganizacao,
-        idAnalista:    sub,
-        idMotivo:      body.data.idMotivo,
-        motivoTexto:   body.data.motivoTexto,
-        pendencias:    body.data.pendencias,
-      })
-      return reply.send({ analise, mensagem: 'Pedido devolvido para ajuste — área demandante notificada' })
-    } catch (err: any) {
-      const status = err.message.includes('permissão') ? 403
-                   : err.message.includes('não encontrado') ? 404
-                   : 400
-      return reply.status(status).send({ erro: err.message })
-    }
+      const analise = await devolverParaAjuste({ idPedido: id, idOrganizacao, idAnalista, idMotivo, pendencias, motivoTexto })
+      return reply.send({ analise, mensagem: 'Pedido devolvido para ajuste' })
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
-  // ── POST /analise-cpl/:id/reprovar ──────────────────────
-  // Reprova a solicitação (status 3 → 6), encerra o fluxo
-  app.post('/analise-cpl/:id/reprovar', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { sub, idOrganizacao } = getTokenData(request)
-
-    const param = idParamSchema.safeParse(request.params)
-    if (!param.success) {
-      return reply.status(400).send({ erro: 'ID de pedido inválido' })
+  // POST /analise-cpl/:id/reprovar
+  app.post('/analise-cpl/:id/reprovar', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao, idAnalista, idMotivo, justificativa, motivoTexto } = request.body as {
+      idOrganizacao: string; idAnalista: string; idMotivo: number; justificativa: string; motivoTexto?: string
     }
-
-    const body = reprovarSchema.safeParse(request.body)
-    if (!body.success) {
-      return reply.status(400).send({ erro: body.error.issues })
-    }
-
+    if (!idOrganizacao || !idAnalista || !idMotivo || !justificativa) return reply.status(400).send({ erro: 'idOrganizacao, idAnalista, idMotivo e justificativa obrigatorios' })
     try {
-      const analise = await reprovarSolicitacao({
-        idPedido:      param.data.id,
-        idOrganizacao,
-        idAnalista:    sub,
-        idMotivo:      body.data.idMotivo,
-        motivoTexto:   body.data.motivoTexto,
-        justificativa: body.data.justificativa,
-      })
-      return reply.send({ analise, mensagem: 'Solicitação reprovada — fluxo encerrado' })
-    } catch (err: any) {
-      const status = err.message.includes('permissão') ? 403
-                   : err.message.includes('não encontrado') ? 404
-                   : 400
-      return reply.status(status).send({ erro: err.message })
-    }
+      const analise = await reprovarSolicitacao({ idPedido: id, idOrganizacao, idAnalista, idMotivo, justificativa, motivoTexto })
+      return reply.send({ analise, mensagem: 'Solicitacao reprovada — fluxo encerrado' })
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
-  // ── POST /analise-cpl/verificar-atrasos ─────────────────
-  // Endpoint para cron job: marca análises vencidas como em atraso
-  app.post('/analise-cpl/verificar-atrasos', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { idOrganizacao, perfil } = getTokenData(request)
-
-    if (!['Admin', 'GestorCompras'].includes(perfil)) {
-      return reply.status(403).send({ erro: 'Apenas Admin ou GestorCompras pode executar esta ação' })
-    }
-
-    const resultado = await verificarAtrasos(idOrganizacao)
-    return reply.send({ mensagem: `${resultado.marcadas} análise(s) marcada(s) como em atraso` })
+  // POST /analise-cpl/verificar-atrasos
+  app.post('/analise-cpl/verificar-atrasos', async (request, reply) => {
+    const { idOrganizacao } = request.body as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    try {
+      const resultado = await verificarAtrasos(idOrganizacao)
+      return reply.send({ mensagem: `${resultado.marcadas} analise(s) marcada(s) como em atraso` })
+    } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
   })
 }
