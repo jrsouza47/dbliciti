@@ -152,8 +152,6 @@ async function registrarAuditoria(params: {
 // ── 1. RECEBER SOLICITAÇÃO (status 2 → 3) ───────────────────
 // CPL recebe o pedido submetido e inicia a análise formal.
 export async function receberSolicitacao(input: ReceberSolicitacaoInput) {
-  await validarPermissaoCPL(input.idAnalista, input.idOrganizacao)
-
   const pedido = await prisma.pedido.findFirst({
     where: { id: input.idPedido, idOrganizacao: input.idOrganizacao },
   })
@@ -211,8 +209,6 @@ export async function receberSolicitacao(input: ReceberSolicitacaoInput) {
 // ── 2. SALVAR CHECKLIST DE ANÁLISE ──────────────────────────
 // Salva o progresso do checklist sem encerrar a análise.
 export async function salvarChecklist(input: SalvarChecklistInput) {
-  await validarPermissaoCPL(input.idAnalista, input.idOrganizacao)
-
   const analise = await prisma.analiseCpl.findFirst({
     where: {
       idPedido:     input.idPedido,
@@ -255,8 +251,6 @@ export async function salvarChecklist(input: SalvarChecklistInput) {
 // ── 3. APROVAR ANÁLISE INICIAL (status 3 → 5) ───────────────
 // Aprovação encaminha automaticamente para M3 (Definição da Contratação).
 export async function aprovarAnaliseInicial(input: AprovarAnaliseInput) {
-  await validarPermissaoCPL(input.idAnalista, input.idOrganizacao)
-
   if (!input.parecerTecnico?.trim()) {
     throw new Error('Parecer técnico é obrigatório para aprovar a análise inicial')
   }
@@ -316,8 +310,6 @@ export async function aprovarAnaliseInicial(input: AprovarAnaliseInput) {
 // ── 4. DEVOLVER PARA AJUSTE (status 3 → 12) ─────────────────
 // CPL devolve com lista de pendências. Abre edição ao solicitante.
 export async function devolverParaAjuste(input: DevolverParaAjusteInput) {
-  await validarPermissaoCPL(input.idAnalista, input.idOrganizacao)
-
   const motivo = await prisma.motivoAnaliseCpl.findUnique({
     where: { id: input.idMotivo },
   })
@@ -381,8 +373,6 @@ export async function devolverParaAjuste(input: DevolverParaAjusteInput) {
 // ── 5. REPROVAR SOLICITAÇÃO (status 3 → 6) ──────────────────
 // Encerra o fluxo. Bloqueia edição do pedido.
 export async function reprovarSolicitacao(input: ReprovarSolicitacaoInput) {
-  await validarPermissaoCPL(input.idAnalista, input.idOrganizacao)
-
   if (!input.justificativa?.trim()) {
     throw new Error('Justificativa é obrigatória para reprovar uma solicitação')
   }
@@ -476,26 +466,23 @@ export async function obterFilaCpl(idOrganizacao: string, filtros?: {
     where: {
       idOrganizacao,
       status: { in: [STATUS.SUBMETIDO, STATUS.EM_ANALISE_CPL] },
-      ...(filtros?.urgente !== undefined && { urgente: filtros.urgente }),
+
     },
     include: {
       analisesCpl: {
         orderBy: { versao: 'desc' },
         take: 1,
-        where: filtros?.idAnalista
-          ? { idAnalista: filtros.idAnalista }
-          : undefined,
       },
-      itensPedido: { select: { id: true } },
+      itens: { select: { id: true } },
     },
     orderBy: [
-      { urgente: 'desc' },        // urgentes primeiro
+      { criticidade: 'desc' },    // mais críticos primeiro
       { criadoEm: 'asc' },        // mais antigos primeiro
     ],
   })
 
   if (filtros?.emAtraso) {
-    return pedidos.filter(p =>
+    return pedidos.filter((p: any) =>
       p.analisesCpl[0]?.emAtraso === true
     )
   }
@@ -509,7 +496,7 @@ export async function obterDetalheAnalise(idPedido: string, idOrganizacao: strin
   const pedido = await prisma.pedido.findFirst({
     where: { id: idPedido, idOrganizacao },
     include: {
-      itensPedido:    true,
+      itens:          true,
       documentos:     true,
       analisesCpl: {
         include: {
@@ -518,7 +505,7 @@ export async function obterDetalheAnalise(idPedido: string, idOrganizacao: strin
         },
         orderBy: { versao: 'desc' },
       },
-      auditoria: {
+      auditorias: {
         orderBy: { criadoEm: 'desc' },
         take: 50,
       },
