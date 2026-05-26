@@ -10,11 +10,11 @@ const prisma = new PrismaClient()
 // ── Mapa de status do sistema de licitações ──────────────────
 export const STATUS = {
   RASCUNHO:             1,
-  SUBMETIDO:            2,  // Entrada no M2
-  EM_ANALISE_CPL:       3,  // CPL recebeu
-  APROVADO_ANALISE:     5,  // Aprovado → segue para M3
-  REPROVADO:            6,  // Encerrado
-  PENDENTE_AJUSTE:     12,  // Devolvido para área demandante
+  ENC_LICITACAO:       20,  // Encaminhado para licitação → entrada M2
+  EM_ANALISE_CPL:      22,  // CPL recebeu e está analisando
+  APROVADO_ANALISE:    23,  // Aprovado → segue para M3
+  REPROVADO:            6,  // Encerrado (global)
+  PENDENTE_AJUSTE:     24,  // Devolvido para área demandante
 } as const
 
 // SLA padrão configurável (dias úteis de referência de mercado: 3-5)
@@ -157,8 +157,8 @@ export async function receberSolicitacao(input: ReceberSolicitacaoInput) {
   })
 
   if (!pedido) throw new Error('Pedido não encontrado')
-  if (pedido.status !== STATUS.SUBMETIDO) {
-    throw new Error(`Pedido deve estar com status Submetido (2) para iniciar análise. Status atual: ${pedido.status}`)
+  if (pedido.status !== STATUS.ENC_LICITACAO) {
+    throw new Error(`Pedido deve estar encaminhado para licitação (status 20) para iniciar análise. Status atual: ${pedido.status}`)
   }
 
   const exigeMatrizRisco = classificarContratacaoComplexa({

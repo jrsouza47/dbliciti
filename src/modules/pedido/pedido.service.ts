@@ -267,7 +267,7 @@ export async function encaminharPedido(id: string, data: EncaminharPedidoInput) 
 
   const destinoInt = data.destino === 'Cotacao' ? 1 : 2
   // Cotação → status 7. Licitação → status 2 (entra na fila do CPL)
-  const novoStatusEncaminhar = data.destino === 'Cotacao' ? 7 : 2
+  const novoStatusEncaminhar = data.destino === 'Cotacao' ? 7 : 20
 
   const pedidoAtualizado = await prisma.pedido.update({
     where: { id },
@@ -419,7 +419,7 @@ export async function cancelarPedido(id: string, data: CancelarPedidoInput) {
 
   const pedidoAtualizado = await prisma.pedido.update({
     where: { id },
-    data: { status: 6 },
+    data: { status: 5 },
   })
 
   await prisma.auditoriaPedido.create({
@@ -442,14 +442,14 @@ export async function devolverPedido(id: string, data: { idUsuario: string; pend
   const pedido = await prisma.pedido.findUnique({ where: { id } })
   if (!pedido) throw new Error('Pedido não encontrado')
 
-  const statusPermitidos = [2, 3, 4, 5]
+  const statusPermitidos = [2, 3, 4]
   if (!statusPermitidos.includes(pedido.status)) {
     throw new Error('Pedido não pode ser devolvido neste status')
   }
 
   const pedidoAtualizado = await prisma.pedido.update({
     where: { id },
-    data: { status: 12 },
+    data: { status: 24 },
   })
 
   await prisma.auditoriaPedido.create({

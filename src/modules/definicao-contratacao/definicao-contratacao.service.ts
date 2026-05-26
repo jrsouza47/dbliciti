@@ -9,11 +9,11 @@ const prisma = new PrismaClient()
 
 // ── Status do sistema de licitações ─────────────────────────
 export const STATUS = {
-  APROVADO_ANALISE:         5,   // Entrada no M3 (saída do M2)
-  EM_DEFINICAO:             7,   // M3 recebeu → em definição
-  DEFINICAO_CONCLUIDA:      8,   // Aprovado → segue para M4 (Análise Jurídica)
-  REPROVADO:                6,   // Encerrado
-  PENDENTE_AJUSTE_DEFINICAO: 13, // Ajuste interno sem retornar etapa anterior
+  APROVADO_ANALISE:          23,  // Entrada no M3 (saída do M2)
+  EM_DEFINICAO:              30,  // M3 recebeu → em definição
+  DEFINICAO_CONCLUIDA:       31,  // Aprovado → segue para M4 (Análise Jurídica)
+  REPROVADO:                  6,  // Encerrado (global)
+  PENDENTE_AJUSTE_DEFINICAO: 32,  // Ajuste interno sem retornar etapa anterior
 } as const
 
 // SLA de referência de mercado (dias úteis)
@@ -540,7 +540,7 @@ export async function obterFilaDefinicao(
   const pedidos = await prisma.pedido.findMany({
     where: {
       idOrganizacao,
-      status: { in: [STATUS.APROVADO_ANALISE, STATUS.EM_DEFINICAO, STATUS.PENDENTE_AJUSTE_DEFINICAO] },
+      status: { in: [STATUS.APROVADO_ANALISE, STATUS.EM_DEFINICAO, STATUS.PENDENTE_AJUSTE_DEFINICAO] }, // 23, 30, 32
       ...(filtros?.urgente && { criticidade: { gte: 2 } }),
     },
     orderBy: [{ criticidade: 'desc' }, { atualizadoEm: 'asc' }],
