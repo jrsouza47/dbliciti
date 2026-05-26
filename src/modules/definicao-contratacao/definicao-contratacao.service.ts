@@ -83,6 +83,7 @@ export interface SalvarDefinicaoInput {
   parametrosEdital?:        ParametrosEdital
   enquadramentoLegal?:      string
   justificativaLegal?:      string
+  parecerTecnico?:          string
 }
 
 export interface ConcluirDefinicaoInput {
@@ -339,6 +340,7 @@ export async function salvarDefinicao(input: SalvarDefinicaoInput) {
       ...(campos.parametrosEdital        !== undefined && { parametrosEdital: campos.parametrosEdital as any }),
       ...(campos.enquadramentoLegal      !== undefined && { enquadramentoLegal: campos.enquadramentoLegal }),
       ...(campos.justificativaLegal      !== undefined && { justificativaLegal: campos.justificativaLegal }),
+      ...(campos.parecerTecnico          !== undefined && { parecerTecnico: campos.parecerTecnico }),
     },
   })
 
