@@ -139,6 +139,15 @@ export async function buscarPedido(id: string) {
       },
       solicitante: { select: { id: true, nome: true, email: true, perfil: true } },
       centroCusto: { select: { id: true, codigo: true, descricao: true } },
+      analisesCpl: {
+        orderBy: { criadoEm: 'desc' },
+        take: 1,
+        select: {
+          motivoTexto: true,
+          pendencias: true,
+          statusResultado: true,
+        },
+      },
     },
   })
 }
@@ -280,8 +289,8 @@ export async function encaminharPedido(id: string, data: EncaminharPedidoInput) 
 export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
   const pedido = await prisma.pedido.findUnique({ where: { id } })
   if (!pedido) throw new Error('Pedido não encontrado')
-  if (![1, 12].includes(pedido.status))
-    throw new Error('Apenas pedidos em Rascunho ou Pendente de ajuste podem ser editados')
+  if (pedido.status !== 1)
+    throw new Error('Apenas pedidos em Rascunho podem ser editados')
 
   // Extrai apenas os campos que existem no model Pedido — ignora tipoPedido, observacao etc.
   const { itens, idCentroCusto, idAlcada, criticidade, justificativa } = data
@@ -317,6 +326,15 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
       itens: { include: { item: true } },
       solicitante: { select: { id: true, nome: true, email: true, perfil: true } },
       centroCusto: { select: { id: true, codigo: true, descricao: true } },
+      analisesCpl: {
+        orderBy: { criadoEm: 'desc' },
+        take: 1,
+        select: {
+          motivoTexto: true,
+          pendencias: true,
+          statusResultado: true,
+        },
+      },
     },
   })
 }
