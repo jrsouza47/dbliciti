@@ -28,6 +28,7 @@ import { filialRoutes } from './modules/filial/filial.routes'
 import { grupoRoutes } from './modules/grupo/grupo.routes'
 import { tipoDocumentoRoutes } from './modules/tipo-documento/tipo-documento.routes'
 import { analiseCplRoutes } from './modules/analise-cpl/analise-cpl.routes'
+import { definicaoContratacaoRoutes } from './modules/definicao-contratacao/definicao-contratacao.routes'
 
 const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
@@ -75,6 +76,7 @@ app.register(filialRoutes)
 app.register(grupoRoutes)
 app.register(tipoDocumentoRoutes)
 app.register(analiseCplRoutes)
+app.register(definicaoContratacaoRoutes)
 
 const start = async () => {
   try {

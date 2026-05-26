@@ -206,6 +206,7 @@ model Usuario {
   filiaisVinculadas           UsuarioFilial[]
   documentosPedido            DocumentoPedido[]
   analisesComoAnalista        AnaliseCpl[]      @relation("AnalistaCpl")
+  definicoesResponsavel       DefinicaoContratacao[] @relation("DefinicaoResponsavel")
 
   @@map("usuario")
 }
@@ -415,6 +416,7 @@ model Pedido {
   cotacoes    Cotacao[]
   documentos  DocumentoPedido[]
   analisesCpl AnaliseCpl[]
+  definicoesContratacao DefinicaoContratacao[]
 
   @@unique([idOrganizacao, numero])
   @@map("pedido")
@@ -958,4 +960,80 @@ model AnaliseCpl {
   @@index([idOrganizacao])
   @@index([idAnalista])
   @@map("analise_cpl")
+}
+// ============================================================
+// ADIÇÕES AO schema.prisma — Módulo 3: Definição da Contratação
+// Arquivo: backend/prisma/schema.prisma
+//
+// 1) Adicionar ao model Pedido (dentro do bloco de relations):
+//      definicoesContratacao DefinicaoContratacao[]
+//
+// 2) Adicionar ao model Usuario (dentro do bloco de relations):
+//      definicoesResponsavel DefinicaoContratacao[] @relation("DefinicaoResponsavel")
+//
+// 3) Colar o model abaixo ao final do arquivo, após o model AnaliseCpl
+// ============================================================
+
+// ── Definição da Contratação (Módulo 3) ──────────────────────
+// Uma definição por ciclo. Ajustes internos geram nova versão.
+model DefinicaoContratacao {
+  id               String    @id @default(uuid())
+  idPedido         String    @map("id_pedido")
+  idOrganizacao    String    @map("id_organizacao")
+  idResponsavel    String?   @map("id_responsavel")
+
+  versao           Int       @default(1)
+  statusAnterior   Int?      @map("status_anterior")
+  statusResultado  Int?      @map("status_resultado")
+
+  // Modalidade de contratação
+  // PREGAO | CONCORRENCIA | DISPENSA | INEXIGIBILIDADE | DIALOGO_COMPETITIVO | LEILAO
+  modalidade              String?
+  modalidadeSugerida      String?  @map("modalidade_sugerida")
+  modalidadeJustificativa String?  @map("modalidade_justificativa")
+
+  // Critério de julgamento
+  // MENOR_PRECO | MAIOR_DESCONTO | TECNICA_PRECO | MELHOR_TECNICA | MAIOR_RETORNO
+  criterioJulgamento     String?  @map("criterio_julgamento")
+  criterioJustificativa  String?  @map("criterio_justificativa")
+
+  // Estratégia de contratação
+  // SRP | LOTE | GLOBAL | ITEM | PARCELAMENTO
+  estrategia             String?
+  estrategiaJustificativa String? @map("estrategia_justificativa")
+
+  // Forma de execução (restrita a obras/engenharia)
+  // PRECO_GLOBAL | PRECO_UNITARIO | TAREFA | INTEGRADA | SEMI_INTEGRADA
+  formaExecucao          String?  @map("forma_execucao")
+
+  // Parâmetros do edital (JSON flexível)
+  // { habilitacao: { juridica, regularidadeFiscal, qualificacaoTecnica, qualificacaoEconomica },
+  //   criteriosTecnicos, qualificacaoEconomica, qualificacaoTecnica }
+  parametrosEdital       Json?    @map("parametros_edital")
+
+  // Enquadramento legal (para dispensa / inexigibilidade)
+  enquadramentoLegal     String?  @map("enquadramento_legal")
+  justificativaLegal     String?  @map("justificativa_legal")
+
+  // Decisão
+  parecerTecnico         String?  @map("parecer_tecnico")
+  motivoTexto            String?  @map("motivo_texto")
+  pendencias             String?
+
+  // Controle SLA
+  slaPrazo               DateTime? @map("sla_prazo")
+  dataRecebimento        DateTime? @map("data_recebimento")
+  dataConclusao          DateTime? @map("data_conclusao")
+  emAtraso               Boolean   @default(false) @map("em_atraso")
+
+  criadoEm               DateTime  @default(now()) @map("criado_em")
+  atualizadoEm           DateTime  @updatedAt @map("atualizado_em")
+
+  pedido      Pedido   @relation(fields: [idPedido], references: [id], onDelete: Cascade)
+  responsavel Usuario? @relation("DefinicaoResponsavel", fields: [idResponsavel], references: [id])
+
+  @@index([idPedido])
+  @@index([idOrganizacao])
+  @@index([idResponsavel])
+  @@map("definicao_contratacao")
 }
