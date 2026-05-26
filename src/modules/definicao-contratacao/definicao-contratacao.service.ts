@@ -543,7 +543,7 @@ export async function obterFilaDefinicao(
     },
     orderBy: [{ criticidade: 'desc' }, { atualizadoEm: 'asc' }],
     include: {
-      itens:      { take: 3, select: { descricao: true, quantidade: true } },
+      itens:      { take: 3, select: { quantidade: true, item: { select: { nome: true } } } },
       solicitante: { select: { nome: true } },
       definicoesContratacao: {
         orderBy: { versao: 'desc' },
@@ -576,7 +576,7 @@ export async function obterFilaDefinicao(
       dataRecebimento:    def?.dataRecebimento ?? null,
       criadoEm:           p.criadoEm,
       atualizadoEm:       p.atualizadoEm,
-      resumoItens:        p.itens.slice(0, 3).map(i => i.descricao),
+      resumoItens:        p.itens.slice(0, 3).map(i => i.item?.nome ?? ''),
     }
   })
 }
@@ -588,7 +588,7 @@ export async function obterDetalheDefinicao(idPedido: string, idOrganizacao: str
   const pedido = await prisma.pedido.findFirst({
     where: { id: idPedido, idOrganizacao },
     include: {
-      itens:      { select: { descricao: true, quantidade: true, unidade: true, valorUnitario: true } },
+      itens:      { select: { quantidade: true, precoUnitario: true, observacao: true, item: { select: { nome: true, unidadeMedida: true } } } },
       solicitante: { select: { id: true, nome: true, email: true } },
       auditorias: {
         where: { acao: { startsWith: 'DEFINICAO' } },
