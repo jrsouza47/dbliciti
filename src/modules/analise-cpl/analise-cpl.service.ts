@@ -177,7 +177,7 @@ export async function receberSolicitacao(input: ReceberSolicitacaoInput) {
         idOrganizacao:   input.idOrganizacao,
         idAnalista:      input.idAnalista,
         versao,
-        statusAnterior:  STATUS.SUBMETIDO,
+        statusAnterior:  STATUS.ENC_LICITACAO,
         exigeMatrizRisco,
         slaPrazo,
         dataRecebimento: new Date(),
@@ -193,7 +193,7 @@ export async function receberSolicitacao(input: ReceberSolicitacaoInput) {
     idPedido:    input.idPedido,
     idUsuario:   input.idAnalista,
     acao:        'Análise CPL iniciada',
-    valorAntes:  String(STATUS.SUBMETIDO),
+    valorAntes:  String(STATUS.ENC_LICITACAO),
     valorDepois: String(STATUS.EM_ANALISE_CPL),
     campo:       'status',
   })
@@ -465,7 +465,7 @@ export async function obterFilaCpl(idOrganizacao: string, filtros?: {
   const pedidos = await prisma.pedido.findMany({
     where: {
       idOrganizacao,
-      status: { in: [STATUS.SUBMETIDO, STATUS.EM_ANALISE_CPL] },
+      status: { in: [STATUS.ENC_LICITACAO, STATUS.EM_ANALISE_CPL] },
 
     },
     include: {
