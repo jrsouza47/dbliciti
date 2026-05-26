@@ -280,8 +280,8 @@ export async function encaminharPedido(id: string, data: EncaminharPedidoInput) 
 export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
   const pedido = await prisma.pedido.findUnique({ where: { id } })
   if (!pedido) throw new Error('Pedido não encontrado')
-  if (pedido.status !== 1)
-    throw new Error('Apenas pedidos em Rascunho podem ser editados')
+  if (![1, 12].includes(pedido.status))
+    throw new Error('Apenas pedidos em Rascunho ou Pendente de ajuste podem ser editados')
 
   // Extrai apenas os campos que existem no model Pedido — ignora tipoPedido, observacao etc.
   const { itens, idCentroCusto, idAlcada, criticidade, justificativa } = data
