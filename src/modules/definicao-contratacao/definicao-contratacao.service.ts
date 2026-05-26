@@ -283,12 +283,11 @@ export async function receberDefinicao(input: ReceberDefinicaoInput) {
     prisma.auditoriaPedido.create({
       data: {
         idPedido,
-        idOrganizacao,
-        idUsuario:       idResponsavel,
-        acao:            'DEFINICAO_RECEBIDA',
-        statusAnterior:  STATUS.APROVADO_ANALISE,
-        statusNovo:      STATUS.EM_DEFINICAO,
-        observacao:      `Módulo 3 iniciado. Modalidade sugerida: ${modalidadeSugerida}. SLA: ${slaPrazo.toLocaleDateString('pt-BR')}.`,
+        usuarioId:   idResponsavel,
+        acao:        'DEFINICAO_RECEBIDA',
+        campo:       'status',
+        valorAntes:  String(STATUS.APROVADO_ANALISE),
+        valorDepois: String(STATUS.EM_DEFINICAO),
       },
     }),
   ])
@@ -397,12 +396,11 @@ export async function concluirDefinicao(input: ConcluirDefinicaoInput) {
     prisma.auditoriaPedido.create({
       data: {
         idPedido,
-        idOrganizacao,
-        idUsuario:      idResponsavel,
-        acao:           'DEFINICAO_CONCLUIDA',
-        statusAnterior: pedido!.status,
-        statusNovo:     STATUS.DEFINICAO_CONCLUIDA,
-        observacao:     `Definição concluída. Modalidade: ${campos.modalidade}. Critério: ${campos.criterioJulgamento}. Estratégia: ${campos.estrategia}. Encaminhado para Análise Jurídica (M4).`,
+        usuarioId:   idResponsavel,
+        acao:        'DEFINICAO_CONCLUIDA',
+        campo:       'status',
+        valorAntes:  String(pedido!.status),
+        valorDepois: String(STATUS.DEFINICAO_CONCLUIDA),
       },
     }),
   ])
@@ -445,12 +443,11 @@ export async function ajusteInterno(input: AjusteInternoInput) {
     prisma.auditoriaPedido.create({
       data: {
         idPedido,
-        idOrganizacao,
-        idUsuario:      idResponsavel,
-        acao:           'DEFINICAO_AJUSTE_INTERNO',
-        statusAnterior: STATUS.EM_DEFINICAO,
-        statusNovo:     STATUS.PENDENTE_AJUSTE_DEFINICAO,
-        observacao:     `Ajuste interno solicitado: ${pendencias}`,
+        usuarioId:   idResponsavel,
+        acao:        'DEFINICAO_AJUSTE_INTERNO',
+        campo:       'status',
+        valorAntes:  String(STATUS.EM_DEFINICAO),
+        valorDepois: String(STATUS.PENDENTE_AJUSTE_DEFINICAO),
       },
     }),
   ])
@@ -499,12 +496,11 @@ export async function reprovarDefinicao(input: ReprovarDefinicaoInput) {
     prisma.auditoriaPedido.create({
       data: {
         idPedido,
-        idOrganizacao,
-        idUsuario:      idResponsavel,
-        acao:           'DEFINICAO_REPROVADA',
-        statusAnterior: pedido!.status,
-        statusNovo:     STATUS.REPROVADO,
-        observacao:     `Reprovado: ${motivoTexto}`,
+        usuarioId:   idResponsavel,
+        acao:        'DEFINICAO_REPROVADA',
+        campo:       'status',
+        valorAntes:  String(pedido!.status),
+        valorDepois: String(STATUS.REPROVADO),
       },
     }),
   ])
