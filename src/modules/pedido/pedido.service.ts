@@ -144,7 +144,6 @@ export async function buscarPedido(id: string) {
         take: 1,
         select: {
           motivoTexto: true,
-          pendencias: true,
           statusResultado: true,
         },
       },
@@ -331,7 +330,6 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
         take: 1,
         select: {
           motivoTexto: true,
-          pendencias: true,
           statusResultado: true,
         },
       },
