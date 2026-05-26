@@ -244,7 +244,7 @@ export async function receberDefinicao(input: ReceberDefinicaoInput) {
 
   const pedido = await prisma.pedido.findFirst({
     where: { id: idPedido, idOrganizacao },
-    select: { id: true, status: true, valorTotal: true, tipoPedido: true },
+    select: { id: true, status: true, valorTotal: true },
   })
   if (!pedido) throw new Error('Pedido não encontrado.')
   if (pedido.status !== STATUS.APROVADO_ANALISE)
@@ -257,7 +257,7 @@ export async function receberDefinicao(input: ReceberDefinicaoInput) {
 
   const modalidadeSugerida = sugerirModalidade({
     valorTotal: pedido.valorTotal ? Number(pedido.valorTotal) : null,
-    tipoPedido: (pedido as any).tipoPedido ?? null,
+    tipoPedido: null,
   })
 
   const isComplexo = Number(pedido.valorTotal ?? 0) >= 1_000_000
@@ -312,17 +312,17 @@ export async function salvarDefinicao(input: SalvarDefinicaoInput) {
 
   const pedido = await prisma.pedido.findFirst({
     where: { id: idPedido, idOrganizacao },
-    select: { status: true, tipoPedido: true },
+    select: { status: true },
   })
   if (pedido?.status !== STATUS.EM_DEFINICAO && pedido?.status !== STATUS.PENDENTE_AJUSTE_DEFINICAO)
     throw new Error('Pedido não está em etapa de Definição da Contratação.')
 
   // Validações de consistência (apenas alertas — não bloqueiam o salvar)
   const alertas = validarConsistencia({
-    modalidade:        campos.modalidade,
+    modalidade:         campos.modalidade,
     criterioJulgamento: campos.criterioJulgamento,
-    formaExecucao:     campos.formaExecucao,
-    tipoPedido:        (pedido as any).tipoPedido,
+    formaExecucao:      campos.formaExecucao,
+    tipoPedido:         undefined,
   })
 
   const updated = await prisma.definicaoContratacao.update({
@@ -615,13 +615,13 @@ export async function obterDetalheDefinicao(idPedido: string, idOrganizacao: str
 export async function consultarSugestao(idPedido: string, idOrganizacao: string) {
   const pedido = await prisma.pedido.findFirst({
     where: { id: idPedido, idOrganizacao },
-    select: { valorTotal: true, tipoPedido: true },
+    select: { valorTotal: true },
   })
   if (!pedido) throw new Error('Pedido não encontrado.')
 
   const sugestao = sugerirModalidade({
     valorTotal: pedido.valorTotal ? Number(pedido.valorTotal) : null,
-    tipoPedido: (pedido as any).tipoPedido ?? null,
+    tipoPedido: null,
   })
 
   return { modalidadeSugerida: sugestao }
