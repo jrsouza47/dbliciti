@@ -266,10 +266,12 @@ export async function encaminharPedido(id: string, data: EncaminharPedidoInput) 
     throw new Error('Apenas pedidos aprovados podem ser encaminhados')
 
   const destinoInt = data.destino === 'Cotacao' ? 1 : 2
+  // Cotação → status 7. Licitação → status 2 (entra na fila do CPL)
+  const novoStatusEncaminhar = data.destino === 'Cotacao' ? 7 : 2
 
   const pedidoAtualizado = await prisma.pedido.update({
     where: { id },
-    data: { status: 7, destinoPos: destinoInt },
+    data: { status: novoStatusEncaminhar, destinoPos: destinoInt },
   })
 
   await prisma.auditoriaPedido.create({
