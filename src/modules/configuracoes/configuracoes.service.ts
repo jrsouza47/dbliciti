@@ -143,76 +143,19 @@ export const DICIONARIO_CONFIGURACOES = [
     grupo: 'Aparencia',
   },
 
-  // ── Terminologia ────────────────────────────────────────────
+  // ── Terminologia ────────────────────────────
   {
-    chave: 'termoPedido',
-    rotulo: 'Como chamar "Pedido de Compra"?',
-    descricao: 'Nome exibido nas telas para o documento de solicitação de compra.',
-    tipo: 'string',
-    padrao: 'Pedido',
-    grupo: 'Terminologia',
-  },
-  {
-    chave: 'termoPedidos',
-    rotulo: 'Como chamar "Pedidos" (plural)?',
-    descricao: 'Nome no plural exibido nos menus e títulos.',
-    tipo: 'string',
-    padrao: 'Pedidos',
-    grupo: 'Terminologia',
-  },
-  {
-    chave: 'termoSolicitante',
-    rotulo: 'Como chamar "Solicitante"?',
-    descricao: 'Nome do papel de quem origina o pedido/solicitação.',
-    tipo: 'string',
-    padrao: 'Solicitante',
-    grupo: 'Terminologia',
-  },
-  {
-    chave: 'termoItem',
-    rotulo: 'Como chamar "Item"?',
-    descricao: 'Nome usado para os itens do pedido.',
-    tipo: 'string',
-    padrao: 'Item',
-    grupo: 'Terminologia',
-  },
-  {
-    chave: 'termoItens',
-    rotulo: 'Como chamar "Itens" (plural)?',
-    descricao: 'Nome no plural para os itens do pedido.',
-    tipo: 'string',
-    padrao: 'Itens',
-    grupo: 'Terminologia',
-  },
-  {
-    chave: 'termoCatalogo',
-    rotulo: 'Como chamar "Catálogo"?',
-    descricao: 'Nome do módulo de catálogo de produtos/serviços.',
-    tipo: 'string',
-    padrao: 'Catálogo',
-    grupo: 'Terminologia',
-  },
-  {
-    chave: 'termoFornecedor',
-    rotulo: 'Como chamar "Fornecedor"?',
-    descricao: 'Nome usado para os fornecedores/prestadores.',
-    tipo: 'string',
-    padrao: 'Fornecedor',
-    grupo: 'Terminologia',
-  },
-  {
-    chave: 'termoContrato',
-    rotulo: 'Como chamar "Contrato"?',
-    descricao: 'Nome do instrumento contratual.',
-    tipo: 'string',
-    padrao: 'Contrato',
+    chave: 'terminologia',
+    rotulo: 'Terminologia personalizada',
+    descricao: 'Lista livre de pares { de, para } para substituição de termos nas telas do sistema.',
+    tipo: 'json',
+    padrao: [],
     grupo: 'Terminologia',
   },
 ]
 
 // ─────────────────────────────────────────────
 // Configurações padrão para nova organização
-// Chame esta função ao criar uma nova organização
 // ─────────────────────────────────────────────
 export function gerarConfiguracoesPadrao(): Record<string, unknown> {
   return Object.fromEntries(
@@ -280,10 +223,8 @@ export async function salvarConfiguracoes(
   if ('usaFiliais' in novasConfiguracoes) {
     const usaFiliais = novasConfiguracoes.usaFiliais as boolean
     if (!usaFiliais) {
-      // Organização NÃO usa filiais → criar/reativar filial virtual
       await criarFilialVirtual(idOrganizacao)
     } else {
-      // Organização USA filiais → desativar filial virtual
       await desativarFilialVirtual(idOrganizacao)
     }
   }
