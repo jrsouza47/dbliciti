@@ -1037,3 +1037,4 @@ model DefinicaoContratacao {
   @@index([idResponsavel])
   @@map("definicao_contratacao")
 }
+  
