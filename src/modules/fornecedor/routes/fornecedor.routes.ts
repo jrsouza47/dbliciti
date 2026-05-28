@@ -18,6 +18,25 @@ import {
 } from '../fornecedor.service'
 
 export async function fornecedorRoutes(app: FastifyInstance) {
+
+  // ── Consulta CNPJ via BrasilAPI (proxy — evita CORS no frontend) ──
+  app.get('/fornecedores/consulta-cnpj/:cnpj', async (request, reply) => {
+    const { cnpj } = request.params as { cnpj: string }
+    const cnpjLimpo = cnpj.replace(/\D/g, '')
+    if (cnpjLimpo.length !== 14) {
+      return reply.status(400).send({ error: 'CNPJ deve conter 14 dígitos' })
+    }
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
+      if (res.status === 404) return reply.status(404).send({ error: 'CNPJ não encontrado na Receita Federal' })
+      if (!res.ok)            return reply.status(502).send({ error: 'Erro ao consultar Receita Federal' })
+      const dados = await res.json()
+      return reply.send(dados)
+    } catch (e) {
+      return reply.status(502).send({ error: 'Falha ao acessar BrasilAPI' })
+    }
+  })
+
   app.post('/fornecedores', async (request, reply) => {
     const data = criarFornecedorSchema.parse(request.body)
     const fornecedor = await criarFornecedor(data)
@@ -70,7 +89,7 @@ export async function fornecedorRoutes(app: FastifyInstance) {
     if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
 
     const fornecedores = await prisma.fornecedor.findMany({
-      where: { idOrganizacao, status: 1 }, // 1 = Ativo
+      where: { idOrganizacao, status: 1 },
       include: {
         qualificacoes: {
           where: { ativo: true, ...(idCategoria ? { idCategoria } : {}) },
@@ -89,7 +108,7 @@ export async function fornecedorRoutes(app: FastifyInstance) {
           },
         },
         alertasSancao: {
-          where: { idOrganizacao, status: 1 }, // 1 = Ativo
+          where: { idOrganizacao, status: 1 },
           select: { id: true },
         },
       },
@@ -103,17 +122,17 @@ export async function fornecedorRoutes(app: FastifyInstance) {
         .filter(p => p.homologada).length
 
       const todasEntregas = f.contratos.flatMap(c => c.entregas)
-      const entregasConfirmadas = todasEntregas.filter(e => e.status === 2).length // 2 = Confirmado
-      const entregasContestadas = todasEntregas.filter(e => e.status === 3).length // 3 = Contestado
+      const entregasConfirmadas = todasEntregas.filter(e => e.status === 2).length
+      const entregasContestadas = todasEntregas.filter(e => e.status === 3).length
       const totalEntregas = todasEntregas.length
       const totalOcorrencias = f.contratos.flatMap(c => c.ocorrencias).length
       const totalContratos = f.contratos.length
       const valorTotalContratado = f.contratos.reduce((acc, c) => acc + Number(c.valorTotal), 0)
       const totalAlertas = f.alertasSancao.length
 
-      const scoreProposta = totalConvites > 0 ? (totalPropostas / totalConvites) * 25 : 0
-      const scoreHomologacao = totalPropostas > 0 ? (propostasHomologadas / totalPropostas) * 25 : 0
-      const scoreEntrega = totalEntregas > 0 ? (entregasConfirmadas / totalEntregas) * 30 : 0
+      const scoreProposta    = totalConvites  > 0 ? (totalPropostas        / totalConvites)  * 25 : 0
+      const scoreHomologacao = totalPropostas > 0 ? (propostasHomologadas  / totalPropostas) * 25 : 0
+      const scoreEntrega     = totalEntregas  > 0 ? (entregasConfirmadas   / totalEntregas)  * 30 : 0
       const penalidade = totalOcorrencias * 5 + entregasContestadas * 3 + totalAlertas * 10
       const score = Math.max(0, Math.min(100, scoreProposta + scoreHomologacao + scoreEntrega - penalidade))
 
@@ -129,8 +148,8 @@ export async function fornecedorRoutes(app: FastifyInstance) {
           convitesRecebidos: totalConvites,
           propostasEnviadas: totalPropostas,
           propostasVencidas: propostasHomologadas,
-          taxaResposta: totalConvites > 0 ? `${((totalPropostas / totalConvites) * 100).toFixed(1)}%` : '0%',
-          taxaVitoria: totalPropostas > 0 ? `${((propostasHomologadas / totalPropostas) * 100).toFixed(1)}%` : '0%',
+          taxaResposta:  totalConvites  > 0 ? `${((totalPropostas       / totalConvites)  * 100).toFixed(1)}%` : '0%',
+          taxaVitoria:   totalPropostas > 0 ? `${((propostasHomologadas / totalPropostas) * 100).toFixed(1)}%` : '0%',
           contratosAtivos: totalContratos,
           valorTotalContratado,
           entregasConfirmadas,
