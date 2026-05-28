@@ -5,8 +5,29 @@ export const criarFornecedorSchema = z.object({
   cnpj: z.string().min(14).max(18),
   razaoSocial: z.string().min(3),
   nomeFantasia: z.string().optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().or(z.literal('')),
   telefone: z.string().optional(),
+  telefone2: z.string().optional(),
+
+  // Dados da Receita Federal
+  situacaoCadastral: z.number().int().optional(),
+  descricaoSituacao: z.string().optional(),
+  dataSituacao: z.string().optional(),
+  dataInicioAtividade: z.string().optional(),
+  naturezaJuridica: z.string().optional(),
+  porte: z.string().optional(),
+  capitalSocial: z.number().optional(),
+  cnaeAtividade: z.string().optional(),
+  cnaeDescricao: z.string().optional(),
+
+  // Endereço
+  logradouro: z.string().optional(),
+  numeroEndereco: z.string().optional(),
+  complemento: z.string().optional(),
+  bairro: z.string().optional(),
+  municipio: z.string().optional(),
+  uf: z.string().optional(),
+  cep: z.string().optional(),
 })
 
 export const qualificarFornecedorSchema = z.object({
@@ -28,7 +49,7 @@ export const suspenderFornecedorSchema = z.object({
   motivoBloqueio: z.string().min(5),
 })
 
-export type CriarFornecedorInput = z.infer<typeof criarFornecedorSchema>
+export type CriarFornecedorInput     = z.infer<typeof criarFornecedorSchema>
 export type QualificarFornecedorInput = z.infer<typeof qualificarFornecedorSchema>
-export type AdicionarDocumentoInput = z.infer<typeof adicionarDocumentoSchema>
-export type SuspenderFornecedorInput = z.infer<typeof suspenderFornecedorSchema>
+export type AdicionarDocumentoInput   = z.infer<typeof adicionarDocumentoSchema>
+export type SuspenderFornecedorInput  = z.infer<typeof suspenderFornecedorSchema>
