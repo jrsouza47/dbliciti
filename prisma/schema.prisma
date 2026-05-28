@@ -500,10 +500,32 @@ model Fornecedor {
   nomeFantasia   String?  @map("nome_fantasia")
   email          String?
   telefone       String?
+  telefone2      String?
   status         Int      @default(1)
   motivoBloqueio String?  @map("motivo_bloqueio")
-  criadoEm      DateTime @default(now()) @map("criado_em")
-  atualizadoEm  DateTime @updatedAt @map("atualizado_em")
+
+  // Dados da Receita Federal
+  situacaoCadastral   Int?     @map("situacao_cadastral")
+  descricaoSituacao   String?  @map("descricao_situacao")
+  dataSituacao        String?  @map("data_situacao")
+  dataInicioAtividade String?  @map("data_inicio_atividade")
+  naturezaJuridica    String?  @map("natureza_juridica")
+  porte               String?
+  capitalSocial       Decimal? @map("capital_social")
+  cnaeAtividade       String?  @map("cnae_atividade")
+  cnaeDescricao       String?  @map("cnae_descricao")
+
+  // Endereço
+  logradouro     String?
+  numeroEndereco String?  @map("numero_endereco")
+  complemento    String?
+  bairro         String?
+  municipio      String?
+  uf             String?
+  cep            String?
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
   organizacao   Organizacao              @relation(fields: [idOrganizacao], references: [id])
   qualificacoes QualificacaoFornecedor[]
@@ -1037,4 +1059,3 @@ model DefinicaoContratacao {
   @@index([idResponsavel])
   @@map("definicao_contratacao")
 }
-  
