@@ -3,6 +3,7 @@ import {
   receberSolicitacao, salvarChecklist, aprovarAnaliseInicial,
   devolverParaAjuste, reprovarSolicitacao, obterFilaCpl,
   obterDetalheAnalise, listarMotivos, verificarAtrasos,
+  salvarRvc, obterRvc,
 } from './analise-cpl.service'
 
 export async function analiseCplRoutes(app: FastifyInstance) {
@@ -30,6 +31,36 @@ export async function analiseCplRoutes(app: FastifyInstance) {
       })
       return reply.send({ total: pedidos.length, pedidos })
     } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
+  })
+
+
+  // ── RVC — Roteiro de Verificação de Conformidade ─────────────
+
+  // GET /analise-cpl/:id/rvc?idOrganizacao=
+  app.get('/analise-cpl/:id/rvc', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    try {
+      const rvc = await obterRvc(id, idOrganizacao)
+      return reply.send({ rvc })
+    } catch (err: any) { return reply.status(404).send({ erro: err.message }) }
+  })
+
+  // PUT /analise-cpl/:id/rvc
+  app.put('/analise-cpl/:id/rvc', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao, idAnalista, rvcLicitacao } = request.body as {
+      idOrganizacao: string
+      idAnalista: string
+      rvcLicitacao: object[]
+    }
+    if (!idOrganizacao || !idAnalista) return reply.status(400).send({ erro: 'idOrganizacao e idAnalista obrigatorios' })
+    if (!Array.isArray(rvcLicitacao)) return reply.status(400).send({ erro: 'rvcLicitacao deve ser um array' })
+    try {
+      const analise = await salvarRvc({ idPedido: id, idOrganizacao, idAnalista, rvcLicitacao })
+      return reply.send({ analise, mensagem: 'RVC salvo com sucesso' })
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
   // GET /analise-cpl/:id?idOrganizacao=
