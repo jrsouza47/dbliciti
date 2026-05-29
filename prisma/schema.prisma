@@ -967,6 +967,10 @@ model AnaliseCpl {
   //   riscoContratacao: 'BAIXO'|'MEDIO'|'ALTO'|null }
   checklist        Json?
 
+  // RVC — Roteiro de Verificação de Conformidade (Anexo IV – Licitação)
+  // Array de { item, quesito, rilc, resposta: SIM|NAO|NA|null, numSei, obs }
+  rvcLicitacao     Json?     @map("rvc_licitacao")
+
   slaPrazo         DateTime? @map("sla_prazo")
   dataRecebimento  DateTime? @map("data_recebimento")
   dataConclusao    DateTime? @map("data_conclusao")
