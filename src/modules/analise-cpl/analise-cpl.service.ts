@@ -558,3 +558,58 @@ export async function listarMotivos(tipo?: 'DEVOLUCAO' | 'REPROVACAO') {
     orderBy: { ordem: 'asc' },
   })
 }
+
+// ── 10. SALVAR RVC ────────────────────────────────────────────
+// Persiste o Roteiro de Verificação de Conformidade (Anexo IV – Licitação).
+// Pode ser chamado a qualquer momento enquanto a análise está aberta.
+export async function salvarRvc(input: {
+  idPedido:      string
+  idOrganizacao: string
+  idAnalista:    string
+  rvcLicitacao:  object[]
+}) {
+  const analise = await prisma.analiseCpl.findFirst({
+    where: { idPedido: input.idPedido, idOrganizacao: input.idOrganizacao },
+    orderBy: { versao: 'desc' },
+  })
+
+  if (!analise) throw new Error('Análise CPL não encontrada para este pedido')
+
+  const analiseAtualizada = await prisma.analiseCpl.update({
+    where: { id: analise.id },
+    data: {
+      rvcLicitacao: input.rvcLicitacao as any,
+      idAnalista:   input.idAnalista,
+    },
+  })
+
+  await registrarAuditoria({
+    idPedido:    input.idPedido,
+    idUsuario:   input.idAnalista,
+    acao:        'RVC – Licitação atualizado',
+    valorAntes:  analise.rvcLicitacao ? JSON.stringify(analise.rvcLicitacao).slice(0, 200) : 'vazio',
+    valorDepois: JSON.stringify(input.rvcLicitacao).slice(0, 200),
+    campo:       'rvc_licitacao',
+  })
+
+  return analiseAtualizada
+}
+
+// ── 11. OBTER RVC ─────────────────────────────────────────────
+// Retorna o RVC salvo para o pedido (null se ainda não preenchido).
+export async function obterRvc(idPedido: string, idOrganizacao: string) {
+  const analise = await prisma.analiseCpl.findFirst({
+    where: { idPedido, idOrganizacao },
+    orderBy: { versao: 'desc' },
+    select: { id: true, rvcLicitacao: true, atualizadoEm: true, idAnalista: true },
+  })
+
+  if (!analise) throw new Error('Análise CPL não encontrada')
+
+  return {
+    idAnalise:    analise.id,
+    rvcLicitacao: analise.rvcLicitacao ?? null,
+    atualizadoEm: analise.atualizadoEm,
+    idAnalista:   analise.idAnalista,
+  }
+}
