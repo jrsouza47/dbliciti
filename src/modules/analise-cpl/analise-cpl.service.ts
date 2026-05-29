@@ -568,12 +568,27 @@ export async function salvarRvc(input: {
   idAnalista:    string
   rvcLicitacao:  object[]
 }) {
-  const analise = await prisma.analiseCpl.findFirst({
+  let analise = await prisma.analiseCpl.findFirst({
     where: { idPedido: input.idPedido, idOrganizacao: input.idOrganizacao },
     orderBy: { versao: 'desc' },
   })
 
-  if (!analise) throw new Error('Análise CPL não encontrada para este pedido')
+  // Se ainda não existe registro de análise, cria um rascunho para salvar o RVC
+  if (!analise) {
+    const pedido = await prisma.pedido.findFirst({ where: { id: input.idPedido, idOrganizacao: input.idOrganizacao } })
+    if (!pedido) throw new Error('Pedido não encontrado')
+    analise = await prisma.analiseCpl.create({
+      data: {
+        idPedido:      input.idPedido,
+        idOrganizacao: input.idOrganizacao,
+        idAnalista:    input.idAnalista,
+        versao:        1,
+        exigeMatrizRisco: false,
+        rvcLicitacao:  input.rvcLicitacao as any,
+      },
+    })
+    return analise
+  }
 
   const analiseAtualizada = await prisma.analiseCpl.update({
     where: { id: analise.id },
