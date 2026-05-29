@@ -12,6 +12,12 @@ function fmt<T extends { cnpj: string }>(f: T): T {
   return { ...f, cnpj: formatarCnpj(f.cnpj) }
 }
 
+function str(v: string | null | undefined): string | null {
+  if (v === undefined || v === null) return null;
+  const s = v.trim();
+  return s.length > 0 ? s : null;
+}
+
 export async function criarFornecedor(data: CriarFornecedorInput) {
   const cnpjLimpo = parseCnpj(data.cnpj)
   const existente = await prisma.fornecedor.findUnique({
@@ -22,16 +28,16 @@ export async function criarFornecedor(data: CriarFornecedorInput) {
   return fmt(await prisma.fornecedor.create({
     data: {
       idOrganizacao: data.idOrganizacao, cnpj: cnpjLimpo,
-      razaoSocial: data.razaoSocial, nomeFantasia: data.nomeFantasia,
-      email: data.email || undefined, telefone: data.telefone, telefone2: data.telefone2,
+      razaoSocial: data.razaoSocial, nomeFantasia: str(data.nomeFantasia),
+      email: str(data.email), telefone: str(data.telefone), telefone2: str(data.telefone2),
       status: 1,
-      situacaoCadastral: data.situacaoCadastral, descricaoSituacao: data.descricaoSituacao,
-      dataSituacao: data.dataSituacao, dataInicioAtividade: data.dataInicioAtividade,
-      naturezaJuridica: data.naturezaJuridica, porte: data.porte,
-      capitalSocial: data.capitalSocial, cnaeAtividade: data.cnaeAtividade, cnaeDescricao: data.cnaeDescricao,
-      logradouro: data.logradouro, numeroEndereco: data.numeroEndereco,
-      complemento: data.complemento, bairro: data.bairro,
-      municipio: data.municipio, uf: data.uf, cep: data.cep,
+      situacaoCadastral: data.situacaoCadastral, descricaoSituacao: str(data.descricaoSituacao),
+      dataSituacao: str(data.dataSituacao), dataInicioAtividade: str(data.dataInicioAtividade),
+      naturezaJuridica: str(data.naturezaJuridica), porte: str(data.porte),
+      capitalSocial: data.capitalSocial, cnaeAtividade: str(data.cnaeAtividade), cnaeDescricao: str(data.cnaeDescricao),
+      logradouro: str(data.logradouro), numeroEndereco: str(data.numeroEndereco),
+      complemento: str(data.complemento), bairro: str(data.bairro),
+      municipio: str(data.municipio), uf: str(data.uf), cep: str(data.cep),
     },
   }))
 }
@@ -40,26 +46,26 @@ export async function atualizarFornecedor(id: string, data: AtualizarFornecedorI
   const fornecedor = await prisma.fornecedor.findUnique({ where: { id } })
   if (!fornecedor) throw new Error('Fornecedor não encontrado')
 
-  // Usa valor do body se presente, senão mantém o valor atual do banco
+  // Sempre atualiza todos os campos enviados — str() converte '' para null
   return fmt(await prisma.fornecedor.update({
     where: { id },
     data: {
       razaoSocial:      data.razaoSocial      ?? fornecedor.razaoSocial,
-      nomeFantasia:     data.nomeFantasia     !== undefined ? data.nomeFantasia     : fornecedor.nomeFantasia,
-      email:            data.email            !== undefined ? (data.email || null)  : fornecedor.email,
-      telefone:         data.telefone         !== undefined ? (data.telefone || fornecedor.telefone): fornecedor.telefone,
-      telefone2:        data.telefone2        !== undefined ? (data.telefone2 || fornecedor.telefone2): fornecedor.telefone2,
-      naturezaJuridica: data.naturezaJuridica !== undefined ? data.naturezaJuridica : fornecedor.naturezaJuridica,
-      porte:            data.porte            !== undefined ? data.porte            : fornecedor.porte,
-      cnaeAtividade:    data.cnaeAtividade    !== undefined ? data.cnaeAtividade    : fornecedor.cnaeAtividade,
-      cnaeDescricao:    data.cnaeDescricao    !== undefined ? data.cnaeDescricao    : fornecedor.cnaeDescricao,
-      logradouro:       data.logradouro       !== undefined ? data.logradouro       : fornecedor.logradouro,
-      numeroEndereco:   data.numeroEndereco   !== undefined ? data.numeroEndereco   : fornecedor.numeroEndereco,
-      complemento:      data.complemento      !== undefined ? data.complemento      : fornecedor.complemento,
-      bairro:           data.bairro           !== undefined ? data.bairro           : fornecedor.bairro,
-      municipio:        data.municipio        !== undefined ? data.municipio        : fornecedor.municipio,
-      uf:               data.uf               !== undefined ? data.uf               : fornecedor.uf,
-      cep:              data.cep              !== undefined ? (data.cep || null)    : fornecedor.cep,
+      nomeFantasia:     str(data.nomeFantasia  ?? fornecedor.nomeFantasia),
+      email:            str(data.email         ?? fornecedor.email),
+      telefone:         str(data.telefone      ?? fornecedor.telefone),
+      telefone2:        str(data.telefone2     ?? fornecedor.telefone2),
+      naturezaJuridica: str(data.naturezaJuridica ?? fornecedor.naturezaJuridica),
+      porte:            str(data.porte         ?? fornecedor.porte),
+      cnaeAtividade:    str(data.cnaeAtividade ?? fornecedor.cnaeAtividade),
+      cnaeDescricao:    str(data.cnaeDescricao ?? fornecedor.cnaeDescricao),
+      logradouro:       str(data.logradouro    ?? fornecedor.logradouro),
+      numeroEndereco:   str(data.numeroEndereco ?? fornecedor.numeroEndereco),
+      complemento:      str(data.complemento   ?? fornecedor.complemento),
+      bairro:           str(data.bairro        ?? fornecedor.bairro),
+      municipio:        str(data.municipio     ?? fornecedor.municipio),
+      uf:               str(data.uf            ?? fornecedor.uf),
+      cep:              str(data.cep           ?? fornecedor.cep),
     },
   }))
 }
