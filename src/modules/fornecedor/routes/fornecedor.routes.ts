@@ -3,12 +3,15 @@ import { formatarCnpj } from '../../../shared/cnpj.utils'
 import { FastifyInstance } from 'fastify'
 import {
   criarFornecedorSchema,
+  atualizarFornecedorSchema,
   qualificarFornecedorSchema,
   adicionarDocumentoSchema,
   suspenderFornecedorSchema,
 } from '../fornecedor.schema'
 import {
   criarFornecedor,
+  atualizarFornecedor,
+  excluirFornecedor,
   listarFornecedores,
   buscarFornecedor,
   qualificarFornecedor,
@@ -19,15 +22,15 @@ import {
 
 export async function fornecedorRoutes(app: FastifyInstance) {
 
-  // ── ATENÇÃO: rotas específicas SEMPRE antes de /:id ──────────
+  // ── Rotas específicas ANTES de /:id ──────────────────────────
 
   // Consulta CNPJ proxy
   app.get('/fornecedores/consulta-cnpj/:cnpj', async (request, reply) => {
     const { cnpj } = request.params as { cnpj: string }
     const cnpjLimpo = cnpj.replace(/\D/g, '')
-    if (cnpjLimpo.length !== 14) {
+    if (cnpjLimpo.length !== 14)
       return reply.status(400).send({ error: 'CNPJ deve conter 14 dígitos' })
-    }
+
     const fontes = [
       `https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`,
       `https://publica.cnpj.ws/cnpj/${cnpjLimpo}`,
@@ -66,9 +69,7 @@ export async function fornecedorRoutes(app: FastifyInstance) {
           email:                        raw.estabelecimento.email,
         } : raw
         return reply.send(dados)
-      } catch (e: any) {
-        continue
-      }
+      } catch { continue }
     }
     return reply.status(502).send({ error: 'Serviço de consulta indisponível. Preencha os dados manualmente.' })
   })
@@ -82,10 +83,7 @@ export async function fornecedorRoutes(app: FastifyInstance) {
 
   // Ranking — ANTES de /:id
   app.get('/fornecedores/ranking', async (request, reply) => {
-    const { idOrganizacao, idCategoria } = request.query as {
-      idOrganizacao: string
-      idCategoria?: string
-    }
+    const { idOrganizacao, idCategoria } = request.query as { idOrganizacao: string; idCategoria?: string }
     if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
 
     const fornecedores = await prisma.fornecedor.findMany({
@@ -95,20 +93,12 @@ export async function fornecedorRoutes(app: FastifyInstance) {
           where: { ativo: true, ...(idCategoria ? { idCategoria } : {}) },
           include: { categoria: { select: { nome: true } } },
         },
-        convites: {
-          include: { propostas: { select: { id: true, homologada: true } } },
-        },
+        convites: { include: { propostas: { select: { id: true, homologada: true } } } },
         contratos: {
           where: { idOrganizacao },
-          include: {
-            entregas: { select: { status: true } },
-            ocorrencias: { select: { status: true } },
-          },
+          include: { entregas: { select: { status: true } }, ocorrencias: { select: { status: true } } },
         },
-        alertasSancao: {
-          where: { idOrganizacao, status: 1 },
-          select: { id: true },
-        },
+        alertasSancao: { where: { idOrganizacao, status: 1 }, select: { id: true } },
       },
     })
 
@@ -124,44 +114,28 @@ export async function fornecedorRoutes(app: FastifyInstance) {
       const totalContratos       = f.contratos.length
       const valorTotalContratado = f.contratos.reduce((acc, c) => acc + Number(c.valorTotal), 0)
       const totalAlertas         = f.alertasSancao.length
-
       const scoreProposta    = totalConvites  > 0 ? (totalPropostas       / totalConvites)  * 25 : 0
       const scoreHomologacao = totalPropostas > 0 ? (propostasHomologadas / totalPropostas) * 25 : 0
       const scoreEntrega     = totalEntregas  > 0 ? (entregasConfirmadas  / totalEntregas)  * 30 : 0
       const penalidade = totalOcorrencias * 5 + entregasContestadas * 3 + totalAlertas * 10
       const score = Math.max(0, Math.min(100, scoreProposta + scoreHomologacao + scoreEntrega - penalidade))
-
       return {
-        fornecedor: {
-          id: f.id, razaoSocial: f.razaoSocial,
-          cnpj: formatarCnpj(f.cnpj),
-          categorias: f.qualificacoes.map(q => q.categoria.nome),
-        },
+        fornecedor: { id: f.id, razaoSocial: f.razaoSocial, cnpj: formatarCnpj(f.cnpj), categorias: f.qualificacoes.map(q => q.categoria.nome) },
         score: Number(score.toFixed(1)),
         indicadores: {
-          convitesRecebidos: totalConvites, propostasEnviadas: totalPropostas,
-          propostasVencidas: propostasHomologadas,
+          convitesRecebidos: totalConvites, propostasEnviadas: totalPropostas, propostasVencidas: propostasHomologadas,
           taxaResposta:  totalConvites  > 0 ? `${((totalPropostas       / totalConvites)  * 100).toFixed(1)}%` : '0%',
           taxaVitoria:   totalPropostas > 0 ? `${((propostasHomologadas / totalPropostas) * 100).toFixed(1)}%` : '0%',
-          contratosAtivos: totalContratos, valorTotalContratado,
-          entregasConfirmadas, entregasContestadas,
+          contratosAtivos: totalContratos, valorTotalContratado, entregasConfirmadas, entregasContestadas,
           ocorrencias: totalOcorrencias, alertasSancao: totalAlertas,
         },
       }
     })
-
-    const rankingOrdenado = ranking
-      .sort((a, b) => b.score - a.score)
-      .map((item, index) => ({ posicao: index + 1, ...item }))
-
-    return reply.send({
-      totalFornecedores: rankingOrdenado.length,
-      filtroCategoria: idCategoria ?? 'Todas',
-      ranking: rankingOrdenado,
-    })
+    const rankingOrdenado = ranking.sort((a, b) => b.score - a.score).map((item, index) => ({ posicao: index + 1, ...item }))
+    return reply.send({ totalFornecedores: rankingOrdenado.length, filtroCategoria: idCategoria ?? 'Todas', ranking: rankingOrdenado })
   })
 
-  // Listar todos
+  // Listar
   app.get('/fornecedores', async (request, reply) => {
     const { idOrganizacao } = request.query as { idOrganizacao: string }
     if (!idOrganizacao) return reply.status(400).send({ error: 'idOrganizacao obrigatorio' })
@@ -183,6 +157,36 @@ export async function fornecedorRoutes(app: FastifyInstance) {
     return fornecedor
   })
 
+  // Atualizar
+  app.put('/fornecedores/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const data = atualizarFornecedorSchema.parse(request.body)
+    try {
+      return await atualizarFornecedor(id, data)
+    } catch (e: any) {
+      return reply.status(400).send({ error: e.message })
+    }
+  })
+
+  // Excluir
+  app.delete('/fornecedores/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    try {
+      await excluirFornecedor(id)
+      return reply.status(204).send()
+    } catch (e: any) {
+      return reply.status(400).send({ error: e.message })
+    }
+  })
+
+  // Status
+  app.patch('/fornecedores/:id/status', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const data = suspenderFornecedorSchema.parse(request.body)
+    return suspenderFornecedor(id, data)
+  })
+
+  // Qualificações e documentos
   app.post('/fornecedores/:id/qualificacoes', async (request, reply) => {
     const { id } = request.params as { id: string }
     const data = qualificarFornecedorSchema.parse(request.body)
@@ -193,11 +197,5 @@ export async function fornecedorRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const data = adicionarDocumentoSchema.parse(request.body)
     return reply.status(201).send(await adicionarDocumento(id, data))
-  })
-
-  app.patch('/fornecedores/:id/status', async (request, reply) => {
-    const { id } = request.params as { id: string }
-    const data = suspenderFornecedorSchema.parse(request.body)
-    return suspenderFornecedor(id, data)
   })
 }

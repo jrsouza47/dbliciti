@@ -2,13 +2,11 @@ import prisma from '../../shared/prisma'
 import { parseCnpj, formatarCnpj } from '../../shared/cnpj.utils'
 import {
   CriarFornecedorInput,
+  AtualizarFornecedorInput,
   QualificarFornecedorInput,
   AdicionarDocumentoInput,
   SuspenderFornecedorInput,
 } from './fornecedor.schema'
-
-// Domínio fornecedor.status: 1=Ativo, 2=Suspenso, 3=Bloqueado
-// Domínio documento.status:  1=Vigente, 2=Vencido, 3=Cancelado
 
 function formatarCnpjFornecedor<T extends { cnpj: string }>(f: T): T {
   return { ...f, cnpj: formatarCnpj(f.cnpj) }
@@ -16,7 +14,6 @@ function formatarCnpjFornecedor<T extends { cnpj: string }>(f: T): T {
 
 export async function criarFornecedor(data: CriarFornecedorInput) {
   const cnpjLimpo = parseCnpj(data.cnpj)
-
   const existente = await prisma.fornecedor.findUnique({
     where: { idOrganizacao_cnpj: { idOrganizacao: data.idOrganizacao, cnpj: cnpjLimpo } },
   })
@@ -24,38 +21,75 @@ export async function criarFornecedor(data: CriarFornecedorInput) {
 
   const fornecedor = await prisma.fornecedor.create({
     data: {
-      idOrganizacao:      data.idOrganizacao,
-      cnpj:               cnpjLimpo,
-      razaoSocial:        data.razaoSocial,
-      nomeFantasia:       data.nomeFantasia,
-      email:              data.email || undefined,
-      telefone:           data.telefone,
-      telefone2:          data.telefone2,
-      status:             1,
-
-      // Receita Federal
-      situacaoCadastral:   data.situacaoCadastral,
-      descricaoSituacao:   data.descricaoSituacao,
-      dataSituacao:        data.dataSituacao,
+      idOrganizacao: data.idOrganizacao,
+      cnpj: cnpjLimpo,
+      razaoSocial: data.razaoSocial,
+      nomeFantasia: data.nomeFantasia,
+      email: data.email || undefined,
+      telefone: data.telefone,
+      telefone2: data.telefone2,
+      status: 1,
+      situacaoCadastral: data.situacaoCadastral,
+      descricaoSituacao: data.descricaoSituacao,
+      dataSituacao: data.dataSituacao,
       dataInicioAtividade: data.dataInicioAtividade,
-      naturezaJuridica:    data.naturezaJuridica,
-      porte:               data.porte,
-      capitalSocial:       data.capitalSocial,
-      cnaeAtividade:       data.cnaeAtividade,
-      cnaeDescricao:       data.cnaeDescricao,
-
-      // Endereço
-      logradouro:     data.logradouro,
+      naturezaJuridica: data.naturezaJuridica,
+      porte: data.porte,
+      capitalSocial: data.capitalSocial,
+      cnaeAtividade: data.cnaeAtividade,
+      cnaeDescricao: data.cnaeDescricao,
+      logradouro: data.logradouro,
       numeroEndereco: data.numeroEndereco,
-      complemento:    data.complemento,
-      bairro:         data.bairro,
-      municipio:      data.municipio,
-      uf:             data.uf,
-      cep:            data.cep,
+      complemento: data.complemento,
+      bairro: data.bairro,
+      municipio: data.municipio,
+      uf: data.uf,
+      cep: data.cep,
     },
   })
-
   return formatarCnpjFornecedor(fornecedor)
+}
+
+export async function atualizarFornecedor(id: string, data: AtualizarFornecedorInput) {
+  const fornecedor = await prisma.fornecedor.findUnique({ where: { id } })
+  if (!fornecedor) throw new Error('Fornecedor não encontrado')
+
+  const atualizado = await prisma.fornecedor.update({
+    where: { id },
+    data: {
+      razaoSocial:     data.razaoSocial,
+      nomeFantasia:    data.nomeFantasia,
+      email:           data.email || undefined,
+      telefone:        data.telefone,
+      telefone2:       data.telefone2,
+      naturezaJuridica: data.naturezaJuridica,
+      porte:           data.porte,
+      cnaeAtividade:   data.cnaeAtividade,
+      cnaeDescricao:   data.cnaeDescricao,
+      logradouro:      data.logradouro,
+      numeroEndereco:  data.numeroEndereco,
+      complemento:     data.complemento,
+      bairro:          data.bairro,
+      municipio:       data.municipio,
+      uf:              data.uf,
+      cep:             data.cep,
+    },
+  })
+  return formatarCnpjFornecedor(atualizado)
+}
+
+export async function excluirFornecedor(id: string) {
+  const fornecedor = await prisma.fornecedor.findUnique({
+    where: { id },
+    include: { contratos: true },
+  })
+  if (!fornecedor) throw new Error('Fornecedor não encontrado')
+  if (fornecedor.contratos.length > 0)
+    throw new Error('Fornecedor possui contratos vinculados e não pode ser excluído')
+
+  await prisma.qualificacaoFornecedor.deleteMany({ where: { idFornecedor: id } })
+  await prisma.documentoFornecedor.deleteMany({ where: { idFornecedor: id } })
+  await prisma.fornecedor.delete({ where: { id } })
 }
 
 export async function listarFornecedores(idOrganizacao: string) {
@@ -107,8 +141,8 @@ export async function adicionarDocumento(id: string, data: AdicionarDocumentoInp
 }
 
 export async function listarDocumentosVencendo(idOrganizacao: string) {
-  const hoje   = new Date()
-  const em30   = new Date()
+  const hoje = new Date()
+  const em30 = new Date()
   em30.setDate(hoje.getDate() + 30)
 
   const docs = await prisma.documentoFornecedor.findMany({
@@ -116,7 +150,6 @@ export async function listarDocumentosVencendo(idOrganizacao: string) {
     include: { fornecedor: true },
     orderBy: { dataVencimento: 'asc' },
   })
-
   return docs.map(d => ({ ...d, fornecedor: formatarCnpjFornecedor(d.fornecedor) }))
 }
 
@@ -131,6 +164,5 @@ export async function suspenderFornecedor(id: string, data: SuspenderFornecedorI
     where: { id },
     data: { status: statusInt, motivoBloqueio: data.motivoBloqueio },
   })
-
   return formatarCnpjFornecedor(atualizado)
 }
