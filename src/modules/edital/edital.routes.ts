@@ -1,17 +1,23 @@
 // ============================================================
-// ROUTES — Módulo 3.5: Elaboração do Edital
-// backend/src/modules/edital/edital.routes.ts
+// ROUTES — Módulos 3.5 (Edital) + 4 (Análise Jurídica)
+// src/modules/edital/edital.routes.ts
 // ============================================================
 
 import { FastifyInstance } from 'fastify'
 import {
-  listarFilaEdital, obterDetalheEdital, uploadVersaoEdital,
-  downloadVersaoEdital, excluirVersaoEdital,
-  encaminharParaJuridico, adicionarComentario,
+  listarFilaEdital,
+  listarFilaJuridico,
+  obterDetalheEdital,
+  uploadVersaoEdital,
+  downloadVersaoEdital,
+  excluirVersaoEdital,
+  encaminharParaJuridico,
+  adicionarComentario,
 } from './edital.service'
 
 export async function editalRoutes(app: FastifyInstance) {
 
+  // ── M3.5: Fila do elaborador (status 31, 33, 34) ──────────
   // GET /edital/fila?idOrganizacao=
   app.get('/edital/fila', async (request, reply) => {
     const { idOrganizacao } = request.query as { idOrganizacao: string }
@@ -22,6 +28,18 @@ export async function editalRoutes(app: FastifyInstance) {
     } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
   })
 
+  // ── M4: Fila do jurídico (status 34 e 35) ─────────────────
+  // GET /edital/fila-juridico?idOrganizacao=
+  app.get('/edital/fila-juridico', async (request, reply) => {
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    try {
+      const pedidos = await listarFilaJuridico(idOrganizacao)
+      return reply.send({ total: pedidos.length, pedidos })
+    } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
+  })
+
+  // ── Detalhe (M3.5 e M4) ───────────────────────────────────
   // GET /edital/:idPedido?idOrganizacao=
   app.get('/edital/:idPedido', async (request, reply) => {
     const { idPedido } = request.params as { idPedido: string }
@@ -33,6 +51,7 @@ export async function editalRoutes(app: FastifyInstance) {
     } catch (err: any) { return reply.status(404).send({ erro: err.message }) }
   })
 
+  // ── M3.5: Upload de nova versão ───────────────────────────
   // POST /edital/:idPedido/upload?idOrganizacao=&idUsuario=&observacao=
   app.post('/edital/:idPedido/upload', async (request, reply) => {
     const { idPedido } = request.params as { idPedido: string }
@@ -53,7 +72,8 @@ export async function editalRoutes(app: FastifyInstance) {
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
-  // GET /edital/versao/:idVersao/download?idOrganizacao=
+  // ── Download (M3.5 e M4) ──────────────────────────────────
+  // GET /edital-versao/:idVersao/download?idOrganizacao=
   app.get('/edital-versao/:idVersao/download', async (request, reply) => {
     const { idVersao } = request.params as { idVersao: string }
     const { idOrganizacao } = request.query as { idOrganizacao: string }
@@ -67,7 +87,8 @@ export async function editalRoutes(app: FastifyInstance) {
     } catch (err: any) { return reply.status(404).send({ erro: err.message }) }
   })
 
-  // DELETE /edital/versao/:idVersao?idOrganizacao=
+  // ── M3.5: Excluir versão ──────────────────────────────────
+  // DELETE /edital-versao/:idVersao?idOrganizacao=
   app.delete('/edital-versao/:idVersao', async (request, reply) => {
     const { idVersao } = request.params as { idVersao: string }
     const { idOrganizacao } = request.query as { idOrganizacao: string }
@@ -78,7 +99,9 @@ export async function editalRoutes(app: FastifyInstance) {
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
+  // ── M3.5: Encaminhar para jurídico ────────────────────────
   // POST /edital/:idPedido/encaminhar
+  // Body: { idOrganizacao, idUsuario, idVersao }
   app.post('/edital/:idPedido/encaminhar', async (request, reply) => {
     const { idPedido } = request.params as { idPedido: string }
     const { idOrganizacao, idUsuario, idVersao } = request.body as {
@@ -91,14 +114,19 @@ export async function editalRoutes(app: FastifyInstance) {
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
+  // ── M3.5 + M4: Comentário / Devolução / Aprovação / Ressalva
   // POST /edital/:idPedido/comentario
+  // Body: { idUsuario, idVersao?, texto, tipo }
+  // tipo: 'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO' | 'RESSALVA'
   app.post('/edital/:idPedido/comentario', async (request, reply) => {
     const { idPedido } = request.params as { idPedido: string }
     const { idUsuario, idVersao, texto, tipo } = request.body as {
       idUsuario: string; idVersao?: string; texto: string
-      tipo: 'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO'
+      tipo: 'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO' | 'RESSALVA'
     }
     if (!idUsuario || !texto || !tipo) return reply.status(400).send({ erro: 'idUsuario, texto e tipo obrigatorios' })
+    const tiposValidos = ['COMENTARIO', 'DEVOLUCAO', 'APROVACAO', 'RESSALVA']
+    if (!tiposValidos.includes(tipo)) return reply.status(400).send({ erro: `tipo invalido — use: ${tiposValidos.join(' | ')}` })
     try {
       const comentario = await adicionarComentario({ idPedido, idVersao, idUsuario, texto, tipo })
       return reply.status(201).send(comentario)
