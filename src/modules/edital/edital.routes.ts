@@ -54,7 +54,7 @@ export async function editalRoutes(app: FastifyInstance) {
   })
 
   // GET /edital/versao/:idVersao/download?idOrganizacao=
-  app.get('/edital/versao/:idVersao/download', async (request, reply) => {
+  app.get('/edital-versao/:idVersao/download', async (request, reply) => {
     const { idVersao } = request.params as { idVersao: string }
     const { idOrganizacao } = request.query as { idOrganizacao: string }
     if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
@@ -68,7 +68,7 @@ export async function editalRoutes(app: FastifyInstance) {
   })
 
   // DELETE /edital/versao/:idVersao?idOrganizacao=
-  app.delete('/edital/versao/:idVersao', async (request, reply) => {
+  app.delete('/edital-versao/:idVersao', async (request, reply) => {
     const { idVersao } = request.params as { idVersao: string }
     const { idOrganizacao } = request.query as { idOrganizacao: string }
     if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
