@@ -1100,6 +1100,7 @@ model EditalComentario {
   idUsuario String   @map("id_usuario")
   texto     String
   tipo      String   @default("COMENTARIO")
+  origem    String   @default("ELABORADOR") @map("origem")
   criadoEm DateTime @default(now()) @map("criado_em")
 
   pedido  Pedido        @relation(fields: [idPedido], references: [id], onDelete: Cascade)
