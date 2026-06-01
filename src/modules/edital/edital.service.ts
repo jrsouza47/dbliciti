@@ -1,6 +1,6 @@
 // ============================================================
-// SERVICE — Módulos 3.5 (Edital) + 4 (Análise Jurídica)
-// src/modules/edital/edital.service.ts
+// SERVICE — Módulo 3.5: Elaboração do Edital
+// backend/src/modules/edital/edital.service.ts
 // ============================================================
 
 import { PrismaClient } from '@prisma/client'
@@ -8,22 +8,19 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 export const STATUS_EDITAL = {
-  ELABORACAO:          'ELABORACAO',
-  AGUARDANDO_JURIDICO: 'AGUARDANDO_JURIDICO',
-  DEVOLVIDO:           'DEVOLVIDO',
-  APROVADO:            'APROVADO',
+  ELABORACAO:           'ELABORACAO',
+  AGUARDANDO_JURIDICO:  'AGUARDANDO_JURIDICO',
+  DEVOLVIDO:            'DEVOLVIDO',
+  APROVADO:             'APROVADO',
 } as const
 
-// M3.5 — elaborador enxerga status 31, 33, 34
-const STATUS_M35 = [31, 33, 34]
+// Status do pedido que permite trabalhar no edital
+const STATUS_PEDIDO_VALIDOS = [31, 33, 34] // DEFINICAO_CONCLUIDA, EM_ELABORACAO_EDITAL, AGUARDANDO_JURIDICO_EDITAL
 
-// M4 — jurídico enxerga status 34 e 35
-const STATUS_M4 = [34, 35]
-
-// ── 1. FILA DO ELABORADOR (M3.5) ─────────────────────────────
+// ── 1. LISTAR FILA DO EDITAL ──────────────────────────────────
 export async function listarFilaEdital(idOrganizacao: string) {
   return prisma.pedido.findMany({
-    where: { idOrganizacao, status: { in: STATUS_M35 } },
+    where: { idOrganizacao, status: { in: STATUS_PEDIDO_VALIDOS } },
     include: {
       editalVersoes: {
         orderBy: { versao: 'desc' },
@@ -44,37 +41,11 @@ export async function listarFilaEdital(idOrganizacao: string) {
   })
 }
 
-// ── 2. FILA DO JURÍDICO (M4) ──────────────────────────────────
-export async function listarFilaJuridico(idOrganizacao: string) {
-  return prisma.pedido.findMany({
-    where: { idOrganizacao, status: { in: STATUS_M4 } },
-    include: {
-      solicitante: { select: { nome: true } },
-      editalVersoes: {
-        orderBy: { versao: 'desc' },
-        select: {
-          id: true, versao: true, nome: true, tamanho: true,
-          mimeType: true, status: true, observacao: true,
-          idUsuario: true, criadoEm: true,
-          usuario: { select: { nome: true } },
-        },
-      },
-      editalComentarios: {
-        orderBy: { criadoEm: 'desc' },
-        take: 1,
-        select: { id: true, texto: true, tipo: true, criadoEm: true, usuario: { select: { nome: true } } },
-      },
-    },
-    orderBy: { criadoEm: 'asc' },
-  })
-}
-
-// ── 3. DETALHE DO PEDIDO ──────────────────────────────────────
+// ── 2. DETALHE DO PEDIDO COM EDITAL ──────────────────────────
 export async function obterDetalheEdital(idPedido: string, idOrganizacao: string) {
   const pedido = await prisma.pedido.findFirst({
     where: { id: idPedido, idOrganizacao },
     include: {
-      solicitante: { select: { nome: true } },
       editalVersoes: {
         orderBy: { versao: 'desc' },
         select: {
@@ -97,7 +68,7 @@ export async function obterDetalheEdital(idPedido: string, idOrganizacao: string
   return pedido
 }
 
-// ── 4. UPLOAD DE NOVA VERSÃO ──────────────────────────────────
+// ── 3. UPLOAD DE NOVA VERSÃO ──────────────────────────────────
 export async function uploadVersaoEdital(input: {
   idPedido: string; idOrganizacao: string; idUsuario: string
   nome: string; tamanho: number; mimeType: string; dados: Buffer; observacao?: string
@@ -121,6 +92,7 @@ export async function uploadVersaoEdital(input: {
     select: { id: true, versao: true, nome: true, tamanho: true, mimeType: true, status: true, observacao: true, idUsuario: true, criadoEm: true },
   })
 
+  // Se pedido estava em DEFINICAO_CONCLUIDA (31), avança para EM_ELABORACAO_EDITAL (33)
   if (pedido.status === 31) {
     await prisma.pedido.update({ where: { id: input.idPedido }, data: { status: 33 } })
   }
@@ -128,14 +100,14 @@ export async function uploadVersaoEdital(input: {
   return versao
 }
 
-// ── 5. DOWNLOAD DE VERSÃO ─────────────────────────────────────
+// ── 4. DOWNLOAD DE VERSÃO ─────────────────────────────────────
 export async function downloadVersaoEdital(idVersao: string, idOrganizacao: string) {
   const versao = await prisma.editalVersao.findFirst({ where: { id: idVersao, idOrganizacao } })
   if (!versao) throw new Error('Versão não encontrada')
   return versao
 }
 
-// ── 6. EXCLUIR VERSÃO ─────────────────────────────────────────
+// ── 5. EXCLUIR VERSÃO ─────────────────────────────────────────
 export async function excluirVersaoEdital(idVersao: string, idOrganizacao: string) {
   const versao = await prisma.editalVersao.findFirst({ where: { id: idVersao, idOrganizacao } })
   if (!versao) throw new Error('Versão não encontrada')
@@ -144,7 +116,7 @@ export async function excluirVersaoEdital(idVersao: string, idOrganizacao: strin
   await prisma.editalVersao.delete({ where: { id: idVersao } })
 }
 
-// ── 7. ENCAMINHAR PARA JURÍDICO (M3.5 → M4) ──────────────────
+// ── 6. ENCAMINHAR PARA JURÍDICO ───────────────────────────────
 export async function encaminharParaJuridico(input: {
   idPedido: string; idOrganizacao: string; idUsuario: string; idVersao: string
 }) {
@@ -164,14 +136,11 @@ export async function encaminharParaJuridico(input: {
   return versaoAtualizada
 }
 
-// ── 8. COMENTÁRIO / DEVOLUÇÃO / APROVAÇÃO / RESSALVA ─────────
-// DEVOLUCAO  → pedido volta para 33 (M3.5)
-// APROVACAO  → pedido avança para 35 (M5)
-// RESSALVA   → pedido avança para 35 (M5) com ressalvas registradas
-// COMENTARIO → sem mudança de status
+// ── 7. COMENTÁRIO / DEVOLUÇÃO / APROVAÇÃO ────────────────────
 export async function adicionarComentario(input: {
   idPedido: string; idVersao?: string; idUsuario: string
-  texto: string; tipo: 'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO' | 'RESSALVA'
+  texto: string; tipo: 'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO'
+  origem: 'JURIDICO' | 'ELABORADOR'
 }) {
   if (input.tipo === 'DEVOLUCAO' && input.idVersao) {
     await prisma.$transaction([
@@ -179,14 +148,14 @@ export async function adicionarComentario(input: {
       prisma.pedido.update({ where: { id: input.idPedido }, data: { status: 33 } }),
     ])
   }
-  if ((input.tipo === 'APROVACAO' || input.tipo === 'RESSALVA') && input.idVersao) {
+  if (input.tipo === 'APROVACAO' && input.idVersao) {
     await prisma.$transaction([
       prisma.editalVersao.update({ where: { id: input.idVersao }, data: { status: STATUS_EDITAL.APROVADO } }),
       prisma.pedido.update({ where: { id: input.idPedido }, data: { status: 35 } }),
     ])
   }
   return prisma.editalComentario.create({
-    data: { idPedido: input.idPedido, idVersao: input.idVersao, idUsuario: input.idUsuario, texto: input.texto, tipo: input.tipo },
+    data: { idPedido: input.idPedido, idVersao: input.idVersao, idUsuario: input.idUsuario, texto: input.texto, tipo: input.tipo, origem: input.origem },
     include: { usuario: { select: { nome: true } } },
   })
 }
