@@ -5,14 +5,9 @@
 
 import { FastifyInstance } from 'fastify'
 import {
-  listarFilaEdital,
-  listarFilaJuridico,
-  obterDetalheEdital,
-  uploadVersaoEdital,
-  downloadVersaoEdital,
-  excluirVersaoEdital,
-  encaminharParaJuridico,
-  adicionarComentario,
+  listarFilaEdital, listarFilaJuridico, obterDetalheEdital,
+  uploadVersaoEdital, downloadVersaoEdital, excluirVersaoEdital,
+  encaminharParaJuridico, adicionarComentario,
 } from './edital.service'
 
 export async function editalRoutes(app: FastifyInstance) {
@@ -116,19 +111,26 @@ export async function editalRoutes(app: FastifyInstance) {
 
   // ── M3.5 + M4: Comentário / Devolução / Aprovação / Ressalva
   // POST /edital/:idPedido/comentario
-  // Body: { idUsuario, idVersao?, texto, tipo }
-  // tipo: 'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO' | 'RESSALVA'
+  // Body: { idUsuario, idVersao?, texto, tipo, origem }
+  // tipo:   'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO' | 'RESSALVA'
+  // origem: 'JURIDICO' | 'ELABORADOR'
   app.post('/edital/:idPedido/comentario', async (request, reply) => {
     const { idPedido } = request.params as { idPedido: string }
-    const { idUsuario, idVersao, texto, tipo } = request.body as {
+    const { idUsuario, idVersao, texto, tipo, origem } = request.body as {
       idUsuario: string; idVersao?: string; texto: string
       tipo: 'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO' | 'RESSALVA'
+      origem: 'JURIDICO' | 'ELABORADOR'
     }
-    if (!idUsuario || !texto || !tipo) return reply.status(400).send({ erro: 'idUsuario, texto e tipo obrigatorios' })
+    if (!idUsuario || !texto || !tipo || !origem)
+      return reply.status(400).send({ erro: 'idUsuario, texto, tipo e origem obrigatorios' })
     const tiposValidos = ['COMENTARIO', 'DEVOLUCAO', 'APROVACAO', 'RESSALVA']
-    if (!tiposValidos.includes(tipo)) return reply.status(400).send({ erro: `tipo invalido — use: ${tiposValidos.join(' | ')}` })
+    if (!tiposValidos.includes(tipo))
+      return reply.status(400).send({ erro: `tipo invalido — use: ${tiposValidos.join(' | ')}` })
+    const origensValidas = ['JURIDICO', 'ELABORADOR']
+    if (!origensValidas.includes(origem))
+      return reply.status(400).send({ erro: 'origem invalida — use: JURIDICO | ELABORADOR' })
     try {
-      const comentario = await adicionarComentario({ idPedido, idVersao, idUsuario, texto, tipo })
+      const comentario = await adicionarComentario({ idPedido, idVersao, idUsuario, texto, tipo, origem })
       return reply.status(201).send(comentario)
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
