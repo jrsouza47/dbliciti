@@ -30,6 +30,7 @@ import { tipoDocumentoRoutes } from './modules/tipo-documento/tipo-documento.rou
 import { analiseCplRoutes } from './modules/analise-cpl/analise-cpl.routes'
 import { definicaoContratacaoRoutes } from './modules/definicao-contratacao/definicao-contratacao.routes'
 import { editalRoutes } from './modules/edital/edital.routes'
+import { areaOrganizacionalRoutes } from './modules/area-organizacional/area-organizacional.routes'
 
 const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
@@ -79,6 +80,7 @@ app.register(tipoDocumentoRoutes)
 app.register(analiseCplRoutes)
 app.register(definicaoContratacaoRoutes)
 app.register(editalRoutes)
+app.register(areaOrganizacionalRoutes)
 
 const start = async () => {
   try {

@@ -50,17 +50,21 @@ export async function analiseCplRoutes(app: FastifyInstance) {
   // PUT /analise-cpl/:id/rvc
   app.put('/analise-cpl/:id/rvc', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { idOrganizacao, idAnalista, rvcLicitacao } = request.body as {
-      idOrganizacao: string
-      idAnalista: string
-      rvcLicitacao: object[]
-    }
+    const body = request.body as any
+    const { idOrganizacao, idAnalista, rvcLicitacao } = body ?? {}
+
+    console.log('[RVC PUT] id:', id, 'idOrganizacao:', idOrganizacao, 'idAnalista:', idAnalista, 'rvcLicitacao length:', Array.isArray(rvcLicitacao) ? rvcLicitacao.length : typeof rvcLicitacao)
+
     if (!idOrganizacao || !idAnalista) return reply.status(400).send({ erro: 'idOrganizacao e idAnalista obrigatorios' })
-    if (!Array.isArray(rvcLicitacao)) return reply.status(400).send({ erro: 'rvcLicitacao deve ser um array' })
+    if (!Array.isArray(rvcLicitacao)) return reply.status(400).send({ erro: 'rvcLicitacao deve ser um array, recebido: ' + typeof rvcLicitacao })
     try {
       const analise = await salvarRvc({ idPedido: id, idOrganizacao, idAnalista, rvcLicitacao })
+      console.log('[RVC PUT] salvo com sucesso, analise id:', analise.id)
       return reply.send({ analise, mensagem: 'RVC salvo com sucesso' })
-    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
+    } catch (err: any) {
+      console.error('[RVC PUT] erro:', err.message)
+      return reply.status(400).send({ erro: err.message })
+    }
   })
 
   // GET /analise-cpl/:id?idOrganizacao=
