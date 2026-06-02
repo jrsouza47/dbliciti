@@ -1103,10 +1103,24 @@ model EditalComentario {
   origem    String   @default("ELABORADOR") @map("origem")
   criadoEm DateTime @default(now()) @map("criado_em")
 
-  pedido  Pedido        @relation(fields: [idPedido], references: [id], onDelete: Cascade)
-  versao  EditalVersao? @relation(fields: [idVersao], references: [id], onDelete: SetNull)
-  usuario Usuario       @relation("EditalComentarioUsuario", fields: [idUsuario], references: [id])
+  pedido   Pedido        @relation(fields: [idPedido], references: [id], onDelete: Cascade)
+  versao   EditalVersao? @relation(fields: [idVersao], references: [id], onDelete: SetNull)
+  usuario  Usuario       @relation("EditalComentarioUsuario", fields: [idUsuario], references: [id])
+  leituras EditalComentarioLeitura[]
 
   @@index([idPedido])
   @@map("edital_comentario")
+}
+
+model EditalComentarioLeitura {
+  id           String   @id @default(uuid())
+  idComentario String   @map("id_comentario")
+  idUsuario    String   @map("id_usuario")
+  lidoEm       DateTime @default(now()) @map("lido_em")
+
+  comentario EditalComentario @relation(fields: [idComentario], references: [id], onDelete: Cascade)
+
+  @@unique([idComentario, idUsuario])
+  @@index([idUsuario, idComentario])
+  @@map("edital_comentario_leitura")
 }

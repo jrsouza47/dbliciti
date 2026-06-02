@@ -14,16 +14,13 @@ export const STATUS_EDITAL = {
   APROVADO:             'APROVADO',
 } as const
 
-// M3.5 — elaborador enxerga status 31, 33, 34
-const STATUS_PEDIDO_VALIDOS = [31, 33, 34]
-
-// M4 — jurídico enxerga status 34 e 35
-const STATUS_M4 = [34, 35]
+const STATUS_M35 = [31, 33, 34]
+const STATUS_M4  = [34, 35]
 
 // ── 1. FILA DO ELABORADOR (M3.5) ─────────────────────────────
-export async function listarFilaEdital(idOrganizacao: string) {
-  return prisma.pedido.findMany({
-    where: { idOrganizacao, status: { in: STATUS_PEDIDO_VALIDOS } },
+export async function listarFilaEdital(idOrganizacao: string, idUsuario: string) {
+  const pedidos = await prisma.pedido.findMany({
+    where: { idOrganizacao, status: { in: STATUS_M35 } },
     include: {
       editalVersoes: {
         orderBy: { versao: 'desc' },
@@ -37,16 +34,26 @@ export async function listarFilaEdital(idOrganizacao: string) {
       editalComentarios: {
         orderBy: { criadoEm: 'desc' },
         take: 1,
-        select: { id: true, texto: true, tipo: true, origem: true, criadoEm: true, usuario: { select: { nome: true } } },
+        select: {
+          id: true, texto: true, tipo: true, origem: true, criadoEm: true,
+          usuario: { select: { nome: true } },
+          leituras: { where: { idUsuario }, select: { id: true } },
+        },
       },
     },
     orderBy: { criadoEm: 'asc' },
   })
+
+  // Adiciona flag temMensagemNova: último comentário é do JURIDICO e não foi lido
+  return pedidos.map(p => ({
+    ...p,
+    temMensagemNova: p.editalComentarios[0]?.origem === 'JURIDICO' && p.editalComentarios[0]?.leituras.length === 0,
+  }))
 }
 
 // ── 2. FILA DO JURÍDICO (M4) ──────────────────────────────────
-export async function listarFilaJuridico(idOrganizacao: string) {
-  return prisma.pedido.findMany({
+export async function listarFilaJuridico(idOrganizacao: string, idUsuario: string) {
+  const pedidos = await prisma.pedido.findMany({
     where: { idOrganizacao, status: { in: STATUS_M4 } },
     include: {
       solicitante: { select: { nome: true } },
@@ -62,14 +69,24 @@ export async function listarFilaJuridico(idOrganizacao: string) {
       editalComentarios: {
         orderBy: { criadoEm: 'desc' },
         take: 1,
-        select: { id: true, texto: true, tipo: true, origem: true, criadoEm: true, usuario: { select: { nome: true } } },
+        select: {
+          id: true, texto: true, tipo: true, origem: true, criadoEm: true,
+          usuario: { select: { nome: true } },
+          leituras: { where: { idUsuario }, select: { id: true } },
+        },
       },
     },
     orderBy: { criadoEm: 'asc' },
   })
+
+  // Adiciona flag temMensagemNova: último comentário é do ELABORADOR e não foi lido
+  return pedidos.map(p => ({
+    ...p,
+    temMensagemNova: p.editalComentarios[0]?.origem === 'ELABORADOR' && p.editalComentarios[0]?.leituras.length === 0,
+  }))
 }
 
-// ── 3. DETALHE DO PEDIDO (M3.5 e M4) ─────────────────────────
+// ── 3. DETALHE DO PEDIDO ──────────────────────────────────────
 export async function obterDetalheEdital(idPedido: string, idOrganizacao: string) {
   const pedido = await prisma.pedido.findFirst({
     where: { id: idPedido, idOrganizacao },
@@ -98,7 +115,29 @@ export async function obterDetalheEdital(idPedido: string, idOrganizacao: string
   return pedido
 }
 
-// ── 4. UPLOAD DE NOVA VERSÃO ──────────────────────────────────
+// ── 4. MARCAR COMENTÁRIOS COMO LIDOS ─────────────────────────
+// Chamado ao abrir o drawer — marca todos os comentários do processo como lidos
+export async function marcarComentariosLidos(idPedido: string, idUsuario: string) {
+  const comentarios = await prisma.editalComentario.findMany({
+    where: { idPedido },
+    select: { id: true },
+  })
+
+  if (comentarios.length === 0) return
+
+  // upsert para não duplicar
+  await prisma.$transaction(
+    comentarios.map(c =>
+      prisma.editalComentarioLeitura.upsert({
+        where: { idComentario_idUsuario: { idComentario: c.id, idUsuario } },
+        create: { idComentario: c.id, idUsuario },
+        update: { lidoEm: new Date() },
+      })
+    )
+  )
+}
+
+// ── 5. UPLOAD DE NOVA VERSÃO ──────────────────────────────────
 export async function uploadVersaoEdital(input: {
   idPedido: string; idOrganizacao: string; idUsuario: string
   nome: string; tamanho: number; mimeType: string; dados: Buffer; observacao?: string
@@ -129,14 +168,14 @@ export async function uploadVersaoEdital(input: {
   return versao
 }
 
-// ── 5. DOWNLOAD DE VERSÃO ─────────────────────────────────────
+// ── 6. DOWNLOAD DE VERSÃO ─────────────────────────────────────
 export async function downloadVersaoEdital(idVersao: string, idOrganizacao: string) {
   const versao = await prisma.editalVersao.findFirst({ where: { id: idVersao, idOrganizacao } })
   if (!versao) throw new Error('Versão não encontrada')
   return versao
 }
 
-// ── 6. EXCLUIR VERSÃO ─────────────────────────────────────────
+// ── 7. EXCLUIR VERSÃO ─────────────────────────────────────────
 export async function excluirVersaoEdital(idVersao: string, idOrganizacao: string) {
   const versao = await prisma.editalVersao.findFirst({ where: { id: idVersao, idOrganizacao } })
   if (!versao) throw new Error('Versão não encontrada')
@@ -145,7 +184,7 @@ export async function excluirVersaoEdital(idVersao: string, idOrganizacao: strin
   await prisma.editalVersao.delete({ where: { id: idVersao } })
 }
 
-// ── 7. ENCAMINHAR PARA JURÍDICO (M3.5 → M4) ──────────────────
+// ── 8. ENCAMINHAR PARA JURÍDICO ───────────────────────────────
 export async function encaminharParaJuridico(input: {
   idPedido: string; idOrganizacao: string; idUsuario: string; idVersao: string
 }) {
@@ -169,13 +208,7 @@ export async function encaminharParaJuridico(input: {
   return versaoAtualizada
 }
 
-// ── 8. COMENTÁRIO / DEVOLUÇÃO / APROVAÇÃO / RESSALVA ─────────
-// origem: 'ELABORADOR' → mensagem do M3.5 (elaborador)
-// origem: 'JURIDICO'   → mensagem do M4 (jurídico)
-// DEVOLUCAO → pedido volta 33, versão DEVOLVIDA
-// APROVACAO → pedido avança 35, versão APROVADA
-// RESSALVA  → pedido avança 35, versão APROVADA (com ressalvas)
-// COMENTARIO → sem mudança de status
+// ── 9. COMENTÁRIO / DEVOLUÇÃO / APROVAÇÃO / RESSALVA ─────────
 export async function adicionarComentario(input: {
   idPedido: string; idVersao?: string; idUsuario: string
   texto: string

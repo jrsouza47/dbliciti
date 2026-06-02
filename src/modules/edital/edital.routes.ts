@@ -7,29 +7,29 @@ import { FastifyInstance } from 'fastify'
 import {
   listarFilaEdital, listarFilaJuridico, obterDetalheEdital,
   uploadVersaoEdital, downloadVersaoEdital, excluirVersaoEdital,
-  encaminharParaJuridico, adicionarComentario,
+  encaminharParaJuridico, adicionarComentario, marcarComentariosLidos,
 } from './edital.service'
 
 export async function editalRoutes(app: FastifyInstance) {
 
-  // ── M3.5: Fila do elaborador (status 31, 33, 34) ──────────
-  // GET /edital/fila?idOrganizacao=
+  // ── M3.5: Fila do elaborador ──────────────────────────────
+  // GET /edital/fila?idOrganizacao=&idUsuario=
   app.get('/edital/fila', async (request, reply) => {
-    const { idOrganizacao } = request.query as { idOrganizacao: string }
-    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    const { idOrganizacao, idUsuario } = request.query as { idOrganizacao: string; idUsuario: string }
+    if (!idOrganizacao || !idUsuario) return reply.status(400).send({ erro: 'idOrganizacao e idUsuario obrigatorios' })
     try {
-      const pedidos = await listarFilaEdital(idOrganizacao)
+      const pedidos = await listarFilaEdital(idOrganizacao, idUsuario)
       return reply.send({ total: pedidos.length, pedidos })
     } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
   })
 
-  // ── M4: Fila do jurídico (status 34 e 35) ─────────────────
-  // GET /edital/fila-juridico?idOrganizacao=
+  // ── M4: Fila do jurídico ──────────────────────────────────
+  // GET /edital/fila-juridico?idOrganizacao=&idUsuario=
   app.get('/edital/fila-juridico', async (request, reply) => {
-    const { idOrganizacao } = request.query as { idOrganizacao: string }
-    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    const { idOrganizacao, idUsuario } = request.query as { idOrganizacao: string; idUsuario: string }
+    if (!idOrganizacao || !idUsuario) return reply.status(400).send({ erro: 'idOrganizacao e idUsuario obrigatorios' })
     try {
-      const pedidos = await listarFilaJuridico(idOrganizacao)
+      const pedidos = await listarFilaJuridico(idOrganizacao, idUsuario)
       return reply.send({ total: pedidos.length, pedidos })
     } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
   })
@@ -44,6 +44,19 @@ export async function editalRoutes(app: FastifyInstance) {
       const detalhe = await obterDetalheEdital(idPedido, idOrganizacao)
       return reply.send(detalhe)
     } catch (err: any) { return reply.status(404).send({ erro: err.message }) }
+  })
+
+  // ── Marcar comentários como lidos ─────────────────────────
+  // POST /edital/:idPedido/marcar-lido
+  // Body: { idUsuario }
+  app.post('/edital/:idPedido/marcar-lido', async (request, reply) => {
+    const { idPedido } = request.params as { idPedido: string }
+    const { idUsuario } = request.body as { idUsuario: string }
+    if (!idUsuario) return reply.status(400).send({ erro: 'idUsuario obrigatorio' })
+    try {
+      await marcarComentariosLidos(idPedido, idUsuario)
+      return reply.send({ ok: true })
+    } catch (err: any) { return reply.status(500).send({ erro: err.message }) }
   })
 
   // ── M3.5: Upload de nova versão ───────────────────────────
@@ -67,7 +80,7 @@ export async function editalRoutes(app: FastifyInstance) {
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
-  // ── Download (M3.5 e M4) ──────────────────────────────────
+  // ── Download ──────────────────────────────────────────────
   // GET /edital-versao/:idVersao/download?idOrganizacao=
   app.get('/edital-versao/:idVersao/download', async (request, reply) => {
     const { idVersao } = request.params as { idVersao: string }
@@ -112,8 +125,6 @@ export async function editalRoutes(app: FastifyInstance) {
   // ── M3.5 + M4: Comentário / Devolução / Aprovação / Ressalva
   // POST /edital/:idPedido/comentario
   // Body: { idUsuario, idVersao?, texto, tipo, origem }
-  // tipo:   'COMENTARIO' | 'DEVOLUCAO' | 'APROVACAO' | 'RESSALVA'
-  // origem: 'JURIDICO' | 'ELABORADOR'
   app.post('/edital/:idPedido/comentario', async (request, reply) => {
     const { idPedido } = request.params as { idPedido: string }
     const { idUsuario, idVersao, texto, tipo, origem } = request.body as {
