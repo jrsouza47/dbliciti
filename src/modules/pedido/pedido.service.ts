@@ -293,8 +293,8 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
   if (pedido.status !== 1)
     throw new Error('Apenas pedidos em Rascunho podem ser editados')
 
-  // Extrai apenas os campos que existem no model Pedido — ignora tipoPedido, observacao etc.
-  const { itens, idCentroCusto, idAlcada, criticidade, justificativa } = data
+  // Extrai os campos do model Pedido
+  const { itens, idCentroCusto, idAlcada, criticidade, justificativa, observacao, tipoPedido } = data
 
   // Recalcula valor total se itens forem enviados
   let valorTotal = Number(pedido.valorTotal)
@@ -321,6 +321,8 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
       ...(idAlcada      !== undefined ? { idAlcada      } : {}),
       ...(criticidade   !== undefined ? { criticidade   } : {}),
       ...(justificativa !== undefined ? { justificativa } : {}),
+      ...(observacao    !== undefined ? { observacao    } : {}),
+      ...(tipoPedido    !== undefined ? { tipoPedido    } : {}),
       valorTotal,
     },
     include: {
