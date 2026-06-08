@@ -269,9 +269,59 @@ export async function authRoutes(app: FastifyInstance) {
       const payload = verificarToken(authHeader.slice(7))
       const usuario = await prisma.usuario.findUnique({
         where: { id: payload.sub },
-        include: { organizacao: { select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true } } },
+        include: {
+          organizacao: { select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true } },
+          organizacoes: {
+            where: { ativo: true },
+            include: {
+              organizacao: { select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true, ativo: true } },
+            },
+          },
+        },
       })
       if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuario nao encontrado ou inativo' })
+
+      // Admin DBS — retorna todas as organizações do sistema
+      let organizacoes: any[]
+      if (payload.perfil === 'Admin') {
+        const todasOrgs = await prisma.organizacao.findMany({
+          where: { ativo: true },
+          select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true },
+          orderBy: { nome: 'asc' },
+        })
+        organizacoes = todasOrgs.map(o => ({
+          idOrganizacao: o.id,
+          nomeOrganizacao: o.nome,
+          slugOrganizacao: o.slug,
+          modeloOrganizacao: o.modelo,
+          idGrupo: o.idGrupo,
+          perfil: 'Admin',
+        }))
+      } else {
+        // Usuário normal — só as orgs vinculadas
+        organizacoes = usuario.organizacoes
+          .filter(v => v.organizacao.ativo)
+          .map(v => ({
+            idOrganizacao: v.organizacao.id,
+            nomeOrganizacao: v.organizacao.nome,
+            slugOrganizacao: v.organizacao.slug,
+            modeloOrganizacao: v.organizacao.modelo,
+            idGrupo: v.organizacao.idGrupo,
+            perfil: v.perfil,
+          }))
+        // Garante ao menos a org principal se não tiver vínculos
+        if (organizacoes.length === 0) {
+          organizacoes = [{
+            idOrganizacao: usuario.idOrganizacao,
+            nomeOrganizacao: usuario.organizacao.nome,
+            slugOrganizacao: usuario.organizacao.slug,
+            modeloOrganizacao: usuario.organizacao.modelo,
+            idGrupo: usuario.organizacao.idGrupo,
+            perfil: usuario.perfil,
+          }]
+        }
+      }
+
       return reply.send({
         id: usuario.id, nome: usuario.nome, email: usuario.email,
         login: usuario.login, perfil: usuario.perfil,
@@ -281,6 +331,7 @@ export async function authRoutes(app: FastifyInstance) {
         slugOrganizacao: usuario.organizacao.slug,
         modeloOrganizacao: usuario.organizacao.modelo,
         idGrupo: usuario.organizacao.idGrupo,
+        organizacoes,
       })
     } catch {
       return reply.status(401).send({ error: 'Token invalido ou expirado' })
