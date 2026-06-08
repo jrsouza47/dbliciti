@@ -282,8 +282,9 @@ export async function authRoutes(app: FastifyInstance) {
       if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuario nao encontrado ou inativo' })
 
       // Admin DBS — retorna todas as organizações do sistema
+      // Usa perfil do banco (não do JWT) para evitar token desatualizado
       let organizacoes: any[]
-      if (payload.perfil === 'Admin') {
+      if (usuario.perfil === 'Admin') {
         const todasOrgs = await prisma.organizacao.findMany({
           where: { ativo: true },
           select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true },
