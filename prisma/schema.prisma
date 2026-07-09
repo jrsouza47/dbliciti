@@ -129,6 +129,13 @@ model Organizacao {
 
   tiposDocumento TipoDocumento[]
 
+  planosPca            PlanoContratacaoAnual[]
+  dfds                 Dfd[]
+  itensPca             ItemPca[]
+  deParaItensSistema   DeParaItemSistemaCorporativo[]
+  enviosPncpPca        PncpEnvioPca[]
+  revisoesPca          RevisaoPca[]
+
   @@map("organizacao")
 }
 
@@ -210,6 +217,16 @@ model Usuario {
   editalVersoes               EditalVersao[]         @relation("EditalUsuario")
   editalComentarios           EditalComentario[]     @relation("EditalComentarioUsuario")
 
+  planosPcaAprovados        PlanoContratacaoAnual[] @relation("PlanoPcaAprovador")
+  dfdsSolicitados           Dfd[]                   @relation("DfdSolicitante")
+  sugestoesIaDecididas      SugestaoIaDfd[]         @relation("SugestaoIaDecisor")
+  itensPcaConsolidados      ItemPca[]               @relation("ItemPcaConsolidador")
+  itensPcaAprovados         ItemPca[]               @relation("ItemPcaAprovador")
+  itensPcaAprovadosNivel2  ItemPca[]                @relation("ItemPcaAprovadorIntermediario")
+  riscosResponsavel         RiscoItemPca[]          @relation("RiscoResponsavel")
+  enviosPncpConferidos      PncpEnvioPca[]          @relation("PncpConferidor")
+  revisoesPcaAprovadas      RevisaoPca[]            @relation("RevisaoPcaAprovador")
+
   @@map("usuario")
 }
 
@@ -253,6 +270,7 @@ model CentroCusto {
 
   organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
   pedidos     Pedido[]
+  dfds        Dfd[]
 
   @@unique([idOrganizacao, codigo])
   @@map("centro_custo")
@@ -317,6 +335,9 @@ model ItemCatalogo {
   itensCotacao    ItemCotacao[]
   itensContrato   ItemContrato[]
   itemCategorias  ItemCategoria[]
+  dfds            Dfd[]
+  itensPca        ItemPca[]
+  deParaItens     DeParaItemSistemaCorporativo[]
 
   @@unique([idOrganizacao, codigoInterno])
   @@map("item_catalogo")
@@ -401,6 +422,8 @@ model Pedido {
   idAlcada      String?  @map("id_alcada")
   criticidade   Int      @default(1) // 1=Normal 2=Alta 3=Maxima
   justificativa String
+  observacao    String?
+  tipoPedido    Int?     @map("tipo_pedido") // 1=Consumo 2=Permanente 3=Servico
   valorTotal    Decimal  @default(0) @map("valor_total") @db.Decimal(15, 2)
   status        Int      @default(1)
   nivelAtual    Int      @default(0) @map("nivel_atual")
@@ -1124,3 +1147,305 @@ model EditalComentarioLeitura {
   @@index([idUsuario, idComentario])
   @@map("edital_comentario_leitura")
 }
+
+
+// ============================================================
+// SCHEMA PRISMA — Módulo PCA (Plano de Contratações Anual)
+// Nome interno dbliciti: PAC · Nome oficial Terracap: PCA
+// Adicionar ao final de backend/prisma/schema.prisma
+//
+// Resolve as pendências do handoff_modulo_pca.md:
+// 1) Dfd ganha unidadeFornecimento, dataDesejada, idItemVinculado
+//    (auto-relação), descricaoObjeto — TODOS incluídos abaixo.
+// 2) Aprovação simplificada: SEM alçada fixa em dois níveis no schema.
+//    O nível intermediário é liberado via Organizacao.configuracoes
+//    (pcaAlcadaIntermediariaHabilitada / pcaAlcadaIntermediariaValor),
+//    e o ItemPca só ganha os campos idAprovadorIntermediario /
+//    dataAprovacaoIntermediaria para registrar o resultado quando
+//    a parametrização da empresa exigir esse passo.
+// 3) De-para Sistemas Corporativos ↔ Catálogo (M1): modelo
+//    DeParaItemSistemaCorporativo abaixo.
+// 4) Os 3 parâmetros (PNCP, corte de risco, alçada) NÃO viram uma
+//    tabela nova — reaproveitam o mecanismo já existente de
+//    Organizacao.configuracoes (JSON, sem histórico, só estado atual),
+//    o mesmo usado hoje em configuracoes.service.ts. Chaves novas:
+//    pcaPncpHabilitado, pcaPncpObrigatorio, pcaValorCorteRisco,
+//    pcaAlcadaIntermediariaHabilitada, pcaAlcadaIntermediariaValor.
+//    (m6PncpHabilitado / m7PncpHabilitado seguem o mesmo padrão
+//    quando esses módulos forem parametrizados.)
+// 5) Ator de consolidação renomeado para CPLIC em todo o código —
+//    ver idConsolidadoPor em ItemPca e comentários abaixo.
+// ============================================================
+
+// ── Plano de Contratações Anual (documento-mãe, por exercício) ─
+// EM_ELABORACAO(1) → EM_APROVACAO(2) → APROVADO(3) → PUBLICADO(4)
+model PlanoContratacaoAnual {
+  id            String    @id @default(uuid())
+  idOrganizacao String    @map("id_organizacao")
+  ano           Int
+  versao        Int       @default(1)
+  status        Int       @default(1) // 1=EM_ELABORACAO 2=EM_APROVACAO 3=APROVADO 4=PUBLICADO
+
+  idAprovador         String?   @map("id_aprovador")
+  dataAprovacao       DateTime? @map("data_aprovacao")
+  dataPublicacaoSitio DateTime? @map("data_publicacao_sitio") // divulgação obrigatória no sítio (não desabilitável)
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
+  aprovador   Usuario?    @relation("PlanoPcaAprovador", fields: [idAprovador], references: [id])
+
+  dfds     Dfd[]
+  itens    ItemPca[]
+  revisoes RevisaoPca[]
+  envios   PncpEnvioPca[]
+
+  @@unique([idOrganizacao, ano, versao])
+  @@index([idOrganizacao])
+  @@map("plano_contratacao_anual")
+}
+
+// ── Demanda do Setor Requisitante (DFD) ─────────────────────
+// RASCUNHO(1) → ENVIADO(2) → CONSOLIDADO(3) · ENVIADO → CANCELADO(4)
+model Dfd {
+  id            String @id @default(uuid())
+  idOrganizacao String @map("id_organizacao")
+  idPlano       String @map("id_plano")
+  idSolicitante String @map("id_solicitante") // usuário do Setor Requisitante que lança a demanda
+  idCentroCusto String? @map("id_centro_custo") // unidade (Setor Requisitante)
+  numero        String
+
+  // Campos mínimos exigidos pela norma (item 10.1.3.1)
+  tipoObjeto               String   @map("tipo_objeto") // BEM | SERVICO | OBRA | TIC
+  codigoSistemaCorporativo String   @map("codigo_sistema_corporativo") // código nos Sistemas Corporativos da Terracap
+  idItemCatalogo           String?  @map("id_item_catalogo") // de-para resolvido p/ Catálogo M1 (pode ser nulo até resolução)
+  unidadeFornecimento       String   @map("unidade_fornecimento")
+  quantidade                 Decimal  @db.Decimal(15, 4)
+  descricaoObjeto             String   @map("descricao_objeto")
+  justificativa               String
+  valorEstimado                Decimal  @default(0) @map("valor_estimado") @db.Decimal(15, 2)
+  prioridade                    Int      @default(2) // 1=Baixa 2=Media 3=Alta
+  dataDesejada                   DateTime @map("data_desejada") @db.Date
+  idItemVinculado                 String?  @map("id_item_vinculado") // dependência entre itens (auto-relação)
+
+  status                   Int       @default(1) // 1=RASCUNHO 2=ENVIADO 3=CONSOLIDADO 4=CANCELADO
+  foraDaJanela             Boolean   @default(false) @map("fora_da_janela") // inclusão fora de 01/jan-10/fev (item 9.1)
+  justificativaForaJanela  String?   @map("justificativa_fora_janela")
+  dataEnvio                DateTime? @map("data_envio")
+
+  idItemPca String? @map("id_item_pca") // preenchido na consolidação pela CPLIC
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  organizacao   Organizacao            @relation(fields: [idOrganizacao], references: [id])
+  plano         PlanoContratacaoAnual  @relation(fields: [idPlano], references: [id])
+  solicitante   Usuario                @relation("DfdSolicitante", fields: [idSolicitante], references: [id])
+  centroCusto   CentroCusto?           @relation(fields: [idCentroCusto], references: [id])
+  itemCatalogo  ItemCatalogo?          @relation(fields: [idItemCatalogo], references: [id])
+  itemVinculado Dfd?                   @relation("DfdVinculado", fields: [idItemVinculado], references: [id])
+  dependentes   Dfd[]                  @relation("DfdVinculado")
+  itemPca       ItemPca?               @relation(fields: [idItemPca], references: [id])
+  sugestoesIa   SugestaoIaDfd[]
+
+  @@unique([idOrganizacao, numero])
+  @@index([idOrganizacao])
+  @@index([idPlano])
+  @@index([status])
+  @@index([idItemPca])
+  @@map("dfd")
+}
+
+// ── Sugestão de IA (preço, duplicidade, agregação) ──────────
+// Disparada automaticamente no envio da demanda (RASCUNHO → ENVIADO).
+model SugestaoIaDfd {
+  id     String @id @default(uuid())
+  idDfd  String @map("id_dfd")
+  tipo   String // PRECO | DUPLICIDADE | AGREGACAO
+  status String @default("PENDENTE") // PENDENTE | ACEITA | REJEITADA
+
+  // tipo = PRECO
+  precoSugerido Decimal? @map("preco_sugerido") @db.Decimal(15, 4)
+  fontePreco    String?  @map("fonte_preco") // ex.: "Histórico de compras — 12 meses"
+
+  // tipo = DUPLICIDADE | AGREGACAO
+  // Array de candidatos: [{ idDfd, numero, descricaoObjeto, scoreSimilaridade }]
+  dfdsRelacionadas Json? @map("dfds_relacionadas")
+
+  justificativaIa String? @map("justificativa_ia")
+
+  idDecisorUsuario String?   @map("id_decisor_usuario")
+  dataDecisao      DateTime? @map("data_decisao")
+  motivoRejeicao   String?   @map("motivo_rejeicao")
+
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  dfd     Dfd      @relation(fields: [idDfd], references: [id], onDelete: Cascade)
+  decisor Usuario? @relation("SugestaoIaDecisor", fields: [idDecisorUsuario], references: [id])
+
+  @@index([idDfd])
+  @@index([status])
+  @@map("sugestao_ia_dfd")
+}
+
+// ── Item PCA consolidado (CPLIC agrega N Dfds de mesma natureza) ─
+// EM_ELABORACAO(1) → EM_APROVACAO(2) → APROVADO(3) → PUBLICADO(4) · REJEITADO(5)
+model ItemPca {
+  id            String @id @default(uuid())
+  idOrganizacao String @map("id_organizacao")
+  idPlano       String @map("id_plano")
+  numero        String
+
+  tipoObjeto          String   @map("tipo_objeto")
+  descricaoObjeto      String   @map("descricao_objeto")
+  idItemCatalogo        String?  @map("id_item_catalogo")
+  unidadeFornecimento    String   @map("unidade_fornecimento")
+  quantidadeTotal         Decimal  @default(0) @map("quantidade_total") @db.Decimal(15, 4) // soma das demandas agrupadas
+  valorTotal               Decimal  @default(0) @map("valor_total") @db.Decimal(15, 2)       // soma das demandas agrupadas
+  prioridade                 Int      @default(2) // maior prioridade entre as demandas de origem
+  dataDesejada                 DateTime? @map("data_desejada") @db.Date // menor data desejada entre as origens
+  idItemPcaDependencia           String?  @map("id_item_pca_dependencia") // auto-relação p/ calendário de licitação
+
+  status Int @default(1) // 1=EM_ELABORACAO 2=EM_APROVACAO 3=APROVADO 4=PUBLICADO 5=REJEITADO
+
+  // Consolidação — CPLIC (segregação de funções: quem elabora ≠ quem consolida ≠ quem aprova)
+  idConsolidadoPor String?   @map("id_consolidado_por")
+  dataConsolidacao DateTime? @map("data_consolidacao")
+
+  // Gestão de riscos (obrigatória acima do corte parametrizado por empresa — ver Organizacao.configuracoes)
+  exigeGestaoRisco Boolean @default(false) @map("exige_gestao_risco")
+
+  // Aprovação — Autoridade Competente (nível único formal da norma, até 01/03)
+  idAprovador      String?   @map("id_aprovador")
+  dataAprovacao    DateTime? @map("data_aprovacao")
+  parecerAprovacao String?   @map("parecer_aprovacao")
+  motivoRejeicao   String?   @map("motivo_rejeicao")
+
+  // Alçada intermediária — só é exigida se a empresa habilitar em Organizacao.configuracoes
+  // (pcaAlcadaIntermediariaHabilitada / pcaAlcadaIntermediariaValor)
+  idAprovadorIntermediario   String?   @map("id_aprovador_intermediario")
+  dataAprovacaoIntermediaria DateTime? @map("data_aprovacao_intermediaria")
+
+  // Calendário de licitação (montado pela CPLIC a partir da data desejada + dependências)
+  dataPrevistaLicitacao DateTime? @map("data_prevista_licitacao") @db.Date
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  organizacao            Organizacao @relation(fields: [idOrganizacao], references: [id])
+  plano                  PlanoContratacaoAnual @relation(fields: [idPlano], references: [id])
+  itemCatalogo           ItemCatalogo? @relation(fields: [idItemCatalogo], references: [id])
+  consolidadoPor         Usuario? @relation("ItemPcaConsolidador", fields: [idConsolidadoPor], references: [id])
+  aprovador              Usuario? @relation("ItemPcaAprovador", fields: [idAprovador], references: [id])
+  aprovadorIntermediario Usuario? @relation("ItemPcaAprovadorIntermediario", fields: [idAprovadorIntermediario], references: [id])
+  dependencia            ItemPca? @relation("ItemPcaDependencia", fields: [idItemPcaDependencia], references: [id])
+  dependentes            ItemPca[] @relation("ItemPcaDependencia")
+
+  dfdsOrigem Dfd[]
+  riscos     RiscoItemPca[]
+  enviosPncp PncpEnvioPca[]
+
+  @@unique([idOrganizacao, numero])
+  @@index([idPlano])
+  @@index([status])
+  @@map("item_pca")
+}
+
+// ── Gestão de riscos (N hipóteses por Item PCA — diretriz 8.1.10) ─
+model RiscoItemPca {
+  id               String  @id @default(uuid())
+  idItemPca        String  @map("id_item_pca")
+  hipotese         String
+  medidaPreventiva String  @map("medida_preventiva")
+  medidaMitigadora String  @map("medida_mitigadora")
+  idResponsavel    String? @map("id_responsavel") // Gestor de Riscos
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  itemPca     ItemPca  @relation(fields: [idItemPca], references: [id], onDelete: Cascade)
+  responsavel Usuario? @relation("RiscoResponsavel", fields: [idResponsavel], references: [id])
+
+  @@index([idItemPca])
+  @@map("risco_item_pca")
+}
+
+// ── De-para: código nos Sistemas Corporativos ↔ Catálogo (M1) ──
+// Pendência confirmada na seção 9.1 da especificação funcional.
+model DeParaItemSistemaCorporativo {
+  id                        String  @id @default(uuid())
+  idOrganizacao             String  @map("id_organizacao")
+  codigoSistemaCorporativo  String  @map("codigo_sistema_corporativo")
+  idItemCatalogo            String  @map("id_item_catalogo")
+  ativo                     Boolean @default(true)
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  organizacao  Organizacao  @relation(fields: [idOrganizacao], references: [id])
+  itemCatalogo ItemCatalogo @relation(fields: [idItemCatalogo], references: [id])
+
+  @@unique([idOrganizacao, codigoSistemaCorporativo])
+  @@map("de_para_item_sistema_corporativo")
+}
+
+// ── Fila de envio ao PNCP (assíncrona, com conferência manual) ──
+// Publicação PNCP é independente da divulgação no sítio — falha aqui
+// não bloqueia nenhuma das duas (seção 9.9 da especificação).
+model PncpEnvioPca {
+  id            String  @id @default(uuid())
+  idOrganizacao String  @map("id_organizacao")
+  idItemPca     String? @map("id_item_pca")
+  idPlano       String? @map("id_plano")
+  tipoEnvio     String  @map("tipo_envio") // PLANO | ITEM | REVISAO
+  status        String  @default("PENDENTE") // PENDENTE | EM_CONFERENCIA | ENVIADO | ERRO
+
+  payload      Json?
+  respostaPncp Json?   @map("resposta_pncp")
+  mensagemErro String? @map("mensagem_erro")
+  tentativas   Int     @default(0)
+
+  idConferidoPor  String?   @map("id_conferido_por")
+  dataConferencia DateTime? @map("data_conferencia")
+  dataEnvio       DateTime? @map("data_envio")
+
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  organizacao  Organizacao            @relation(fields: [idOrganizacao], references: [id])
+  itemPca      ItemPca?               @relation(fields: [idItemPca], references: [id])
+  plano        PlanoContratacaoAnual? @relation(fields: [idPlano], references: [id])
+  conferidoPor Usuario?               @relation("PncpConferidor", fields: [idConferidoPor], references: [id])
+
+  @@index([idOrganizacao])
+  @@index([status])
+  @@map("pncp_envio_pca")
+}
+
+// ── Revisão / redimensionamento / atualização (janelas da norma) ─
+// Também serve de histórico de versões do PCA (tela "Histórico do PCA").
+model RevisaoPca {
+  id            String @id @default(uuid())
+  idPlano       String @map("id_plano")
+  idOrganizacao String @map("id_organizacao")
+
+  tipoJanela          String    @map("tipo_janela") // SET_NOV | POS_LDO | EXECUCAO
+  motivo              String    // fato ensejador (redimensionar/excluir) ou imprevisibilidade (incluir)
+  descricaoAlteracoes String    @map("descricao_alteracoes")
+  versaoResultante    Int       @map("versao_resultante")
+
+  idAprovador         String?   @map("id_aprovador")
+  dataAprovacao       DateTime? @map("data_aprovacao")
+  dataPublicacaoSitio DateTime? @map("data_publicacao_sitio")
+
+  criadoEm DateTime @default(now()) @map("criado_em")
+
+  plano       PlanoContratacaoAnual @relation(fields: [idPlano], references: [id])
+  organizacao Organizacao           @relation(fields: [idOrganizacao], references: [id])
+  aprovador   Usuario?              @relation("RevisaoPcaAprovador", fields: [idAprovador], references: [id])
+
+  @@index([idPlano])
+  @@map("revisao_pca")
+}
+

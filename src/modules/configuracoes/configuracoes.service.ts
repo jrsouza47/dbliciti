@@ -152,6 +152,48 @@ export const DICIONARIO_CONFIGURACOES = [
     padrao: [],
     grupo: 'Terminologia',
   },
+
+  // ── PCA — Plano de Contratações Anual ────────
+  {
+    chave: 'pcaPncpHabilitado',
+    rotulo: 'Habilitar envio do PCA ao PNCP?',
+    descricao: 'Controla o envio de itens/planos do PCA ao Portal Nacional de Contratacoes Publicas. Independe da divulgacao no sitio da empresa, que nao e desabilitavel.',
+    tipo: 'boolean',
+    padrao: false,
+    grupo: 'PCA',
+  },
+  {
+    chave: 'pcaPncpObrigatorio',
+    rotulo: 'Envio ao PNCP e obrigatorio para o PCA?',
+    descricao: 'Junto com pcaPncpHabilitado, marca o envio como exigencia formal para esta empresa.',
+    tipo: 'boolean',
+    padrao: false,
+    grupo: 'PCA',
+  },
+  {
+    chave: 'pcaValorCorteRisco',
+    rotulo: 'Valor de corte para gestao de riscos obrigatoria',
+    descricao: 'Valor do Item PCA a partir do qual pelo menos um risco deve ser registrado antes da aprovacao.',
+    tipo: 'number',
+    padrao: null,
+    grupo: 'PCA',
+  },
+  {
+    chave: 'pcaAlcadaIntermediariaHabilitada',
+    rotulo: 'Habilitar alcada intermediaria de aprovacao no PCA?',
+    descricao: 'Exige um nivel extra de aprovacao antes do envio a GECOP/Autoridade Competente.',
+    tipo: 'boolean',
+    padrao: false,
+    grupo: 'PCA',
+  },
+  {
+    chave: 'pcaAlcadaIntermediariaValor',
+    rotulo: 'Valor a partir do qual a alcada intermediaria e exigida',
+    descricao: 'Valor do Item PCA a partir do qual a aprovacao intermediaria (quando habilitada) passa a ser exigida.',
+    tipo: 'number',
+    padrao: null,
+    grupo: 'PCA',
+  },
 ]
 
 // ─────────────────────────────────────────────

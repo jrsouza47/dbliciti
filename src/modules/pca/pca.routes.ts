@@ -1,0 +1,19 @@
+// ============================================================
+// ROUTES — Módulo PCA: agregador
+// backend/src/modules/pca/pca.routes.ts
+// Registra planoRoutes, dfdRoutes, sugestaoIaRoutes e consolidacaoRoutes
+// em server.ts com uma única chamada: app.register(pcaRoutes)
+// ============================================================
+
+import { FastifyInstance } from 'fastify'
+import { planoRoutes } from './plano.routes'
+import { dfdRoutes } from './dfd.routes'
+import { sugestaoIaRoutes } from './sugestao-ia.routes'
+import { consolidacaoRoutes } from './consolidacao.routes'
+
+export async function pcaRoutes(app: FastifyInstance) {
+  await app.register(planoRoutes)
+  await app.register(dfdRoutes)
+  await app.register(sugestaoIaRoutes)
+  await app.register(consolidacaoRoutes)
+}
