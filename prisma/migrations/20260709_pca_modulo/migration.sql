@@ -16,12 +16,12 @@ $$ LANGUAGE plpgsql;
 
 -- ── 1) Plano de Contratações Anual (documento-mãe, por exercício) ─
 CREATE TABLE IF NOT EXISTS "plano_contratacao_anual" (
-  "id"                     UUID         NOT NULL DEFAULT gen_random_uuid(),
+  "id"                     TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
   "id_organizacao"         TEXT         NOT NULL,
   "ano"                    INT          NOT NULL,
   "versao"                 INT          NOT NULL DEFAULT 1,
   "status"                 INT          NOT NULL DEFAULT 1, -- 1=EM_ELABORACAO 2=EM_APROVACAO 3=APROVADO 4=PUBLICADO
-  "id_aprovador"           UUID,
+  "id_aprovador"           TEXT,
   "data_aprovacao"         TIMESTAMP(3),
   "data_publicacao_sitio"  TIMESTAMP(3),
   "criado_em"              TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -40,15 +40,15 @@ CREATE TRIGGER plano_pca_update_timestamp BEFORE UPDATE ON "plano_contratacao_an
 
 -- ── 2) Demanda do Setor Requisitante (DFD) ────────────────────
 CREATE TABLE IF NOT EXISTS "dfd" (
-  "id"                          UUID         NOT NULL DEFAULT gen_random_uuid(),
+  "id"                          TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
   "id_organizacao"              TEXT         NOT NULL,
-  "id_plano"                    UUID         NOT NULL,
-  "id_solicitante"               UUID         NOT NULL,
-  "id_centro_custo"              UUID,
+  "id_plano"                    TEXT         NOT NULL,
+  "id_solicitante"               TEXT         NOT NULL,
+  "id_centro_custo"              TEXT,
   "numero"                       TEXT         NOT NULL,
   "tipo_objeto"                   TEXT         NOT NULL,
   "codigo_sistema_corporativo"    TEXT         NOT NULL,
-  "id_item_catalogo"               UUID,
+  "id_item_catalogo"               TEXT,
   "unidade_fornecimento"           TEXT         NOT NULL,
   "quantidade"                      DECIMAL(15,4) NOT NULL,
   "descricao_objeto"                TEXT         NOT NULL,
@@ -56,12 +56,12 @@ CREATE TABLE IF NOT EXISTS "dfd" (
   "valor_estimado"                    DECIMAL(15,2) NOT NULL DEFAULT 0,
   "prioridade"                          INT        NOT NULL DEFAULT 2,
   "data_desejada"                       DATE       NOT NULL,
-  "id_item_vinculado"                    UUID,
+  "id_item_vinculado"                    TEXT,
   "status"                                INT        NOT NULL DEFAULT 1, -- 1=RASCUNHO 2=ENVIADO 3=CONSOLIDADO 4=CANCELADO
   "fora_da_janela"                         BOOLEAN    NOT NULL DEFAULT FALSE,
   "justificativa_fora_janela"               TEXT,
   "data_envio"                              TIMESTAMP(3),
-  "id_item_pca"                              UUID,
+  "id_item_pca"                              TEXT,
   "criado_em"                                TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "atualizado_em"                            TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -83,15 +83,15 @@ CREATE TRIGGER dfd_update_timestamp BEFORE UPDATE ON "dfd"
 
 -- ── 3) Sugestão de IA (preço, duplicidade, agregação) ─────────
 CREATE TABLE IF NOT EXISTS "sugestao_ia_dfd" (
-  "id"                   UUID         NOT NULL DEFAULT gen_random_uuid(),
-  "id_dfd"               UUID         NOT NULL,
+  "id"                   TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
+  "id_dfd"               TEXT         NOT NULL,
   "tipo"                 TEXT         NOT NULL CHECK ("tipo" IN ('PRECO', 'DUPLICIDADE', 'AGREGACAO')),
   "status"               TEXT         NOT NULL DEFAULT 'PENDENTE' CHECK ("status" IN ('PENDENTE', 'ACEITA', 'REJEITADA')),
   "preco_sugerido"       DECIMAL(15,4),
   "fonte_preco"          TEXT,
   "dfds_relacionadas"    JSONB,
   "justificativa_ia"     TEXT,
-  "id_decisor_usuario"   UUID,
+  "id_decisor_usuario"   TEXT,
   "data_decisao"         TIMESTAMP(3),
   "motivo_rejeicao"      TEXT,
   "criado_em"            TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -107,28 +107,28 @@ CREATE INDEX IF NOT EXISTS "sugestao_ia_dfd_status_idx" ON "sugestao_ia_dfd"("st
 
 -- ── 4) Item PCA consolidado ────────────────────────────────────
 CREATE TABLE IF NOT EXISTS "item_pca" (
-  "id"                              UUID         NOT NULL DEFAULT gen_random_uuid(),
+  "id"                              TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
   "id_organizacao"                  TEXT         NOT NULL,
-  "id_plano"                        UUID         NOT NULL,
+  "id_plano"                        TEXT         NOT NULL,
   "numero"                          TEXT         NOT NULL,
   "tipo_objeto"                     TEXT         NOT NULL,
   "descricao_objeto"                TEXT         NOT NULL,
-  "id_item_catalogo"                UUID,
+  "id_item_catalogo"                TEXT,
   "unidade_fornecimento"            TEXT         NOT NULL,
   "quantidade_total"                DECIMAL(15,4) NOT NULL DEFAULT 0,
   "valor_total"                     DECIMAL(15,2) NOT NULL DEFAULT 0,
   "prioridade"                      INT          NOT NULL DEFAULT 2,
   "data_desejada"                   DATE,
-  "id_item_pca_dependencia"         UUID,
+  "id_item_pca_dependencia"         TEXT,
   "status"                          INT          NOT NULL DEFAULT 1, -- 1=EM_ELABORACAO 2=EM_APROVACAO 3=APROVADO 4=PUBLICADO 5=REJEITADO
-  "id_consolidado_por"              UUID,
+  "id_consolidado_por"              TEXT,
   "data_consolidacao"               TIMESTAMP(3),
   "exige_gestao_risco"              BOOLEAN      NOT NULL DEFAULT FALSE,
-  "id_aprovador"                    UUID,
+  "id_aprovador"                    TEXT,
   "data_aprovacao"                  TIMESTAMP(3),
   "parecer_aprovacao"               TEXT,
   "motivo_rejeicao"                 TEXT,
-  "id_aprovador_intermediario"      UUID,
+  "id_aprovador_intermediario"      TEXT,
   "data_aprovacao_intermediaria"    TIMESTAMP(3),
   "data_prevista_licitacao"         DATE,
   "criado_em"                       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -155,12 +155,12 @@ ALTER TABLE "dfd" ADD CONSTRAINT "dfd_id_item_pca_fkey"
 
 -- ── 5) Gestão de riscos (N hipóteses por Item PCA) ────────────
 CREATE TABLE IF NOT EXISTS "risco_item_pca" (
-  "id"                 UUID         NOT NULL DEFAULT gen_random_uuid(),
-  "id_item_pca"        UUID         NOT NULL,
+  "id"                 TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
+  "id_item_pca"        TEXT         NOT NULL,
   "hipotese"           TEXT         NOT NULL,
   "medida_preventiva"  TEXT         NOT NULL,
   "medida_mitigadora"  TEXT         NOT NULL,
-  "id_responsavel"     UUID,
+  "id_responsavel"     TEXT,
   "criado_em"          TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "atualizado_em"      TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -176,10 +176,10 @@ CREATE TRIGGER risco_item_pca_update_timestamp BEFORE UPDATE ON "risco_item_pca"
 
 -- ── 6) De-para: código Sistemas Corporativos ↔ Catálogo (M1) ──
 CREATE TABLE IF NOT EXISTS "de_para_item_sistema_corporativo" (
-  "id"                          UUID         NOT NULL DEFAULT gen_random_uuid(),
+  "id"                          TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
   "id_organizacao"              TEXT         NOT NULL,
   "codigo_sistema_corporativo"  TEXT         NOT NULL,
-  "id_item_catalogo"            UUID         NOT NULL,
+  "id_item_catalogo"            TEXT         NOT NULL,
   "ativo"                       BOOLEAN      NOT NULL DEFAULT TRUE,
   "criado_em"                   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "atualizado_em"               TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -194,17 +194,17 @@ CREATE TRIGGER de_para_update_timestamp BEFORE UPDATE ON "de_para_item_sistema_c
 
 -- ── 7) Fila de envio ao PNCP ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS "pncp_envio_pca" (
-  "id"                UUID         NOT NULL DEFAULT gen_random_uuid(),
+  "id"                TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
   "id_organizacao"    TEXT         NOT NULL,
-  "id_item_pca"       UUID,
-  "id_plano"          UUID,
+  "id_item_pca"       TEXT,
+  "id_plano"          TEXT,
   "tipo_envio"        TEXT         NOT NULL CHECK ("tipo_envio" IN ('PLANO', 'ITEM', 'REVISAO')),
   "status"            TEXT         NOT NULL DEFAULT 'PENDENTE' CHECK ("status" IN ('PENDENTE', 'EM_CONFERENCIA', 'ENVIADO', 'ERRO')),
   "payload"           JSONB,
   "resposta_pncp"     JSONB,
   "mensagem_erro"     TEXT,
   "tentativas"        INT          NOT NULL DEFAULT 0,
-  "id_conferido_por"  UUID,
+  "id_conferido_por"  TEXT,
   "data_conferencia"  TIMESTAMP(3),
   "data_envio"        TIMESTAMP(3),
   "criado_em"         TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -223,14 +223,14 @@ CREATE TRIGGER pncp_envio_pca_update_timestamp BEFORE UPDATE ON "pncp_envio_pca"
 
 -- ── 8) Revisão / redimensionamento / histórico de versões ─────
 CREATE TABLE IF NOT EXISTS "revisao_pca" (
-  "id"                      UUID         NOT NULL DEFAULT gen_random_uuid(),
-  "id_plano"                UUID         NOT NULL,
+  "id"                      TEXT         NOT NULL DEFAULT gen_random_uuid()::text,
+  "id_plano"                TEXT         NOT NULL,
   "id_organizacao"          TEXT         NOT NULL,
   "tipo_janela"             TEXT         NOT NULL CHECK ("tipo_janela" IN ('SET_NOV', 'POS_LDO', 'EXECUCAO')),
   "motivo"                  TEXT         NOT NULL,
   "descricao_alteracoes"    TEXT         NOT NULL,
   "versao_resultante"       INT          NOT NULL,
-  "id_aprovador"            UUID,
+  "id_aprovador"            TEXT,
   "data_aprovacao"          TIMESTAMP(3),
   "data_publicacao_sitio"   TIMESTAMP(3),
   "criado_em"               TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
