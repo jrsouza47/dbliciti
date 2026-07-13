@@ -100,11 +100,18 @@ export async function sincronizarItensErp(idOrganizacao: string) {
     const senha = registro.senhaCriptografada ? descriptografar(registro.senhaCriptografada) : undefined
     const apiKey = registro.apiKeyCriptografada ? descriptografar(registro.apiKeyCriptografada) : undefined
 
+    // Alguns ERPs (ex.: Benner) exigem o CNPJ da empresa para filtrar os
+    // produtos — usamos o mesmo CNPJ já cadastrado em Configurações > Organização,
+    // sem precisar de um campo novo na Tela 7.
+    const org = await prisma.organizacao.findUnique({ where: { id: idOrganizacao } })
+    if (!org) throw new Error('Organização não encontrada')
+
     const itens = await conector.buscarItens({
       urlIntegracao: registro.urlIntegracao,
       usuario: registro.usuario ?? undefined,
       senha,
       apiKey,
+      cnpj: org.cnpj,
     })
 
     const idUsuarioSistema = await obterUsuarioSistema(idOrganizacao)

@@ -10,6 +10,8 @@ export interface ConfigConector {
   usuario?: string
   senha?: string
   apiKey?: string
+  cnpj?: string // CNPJ da organização (já cadastrado em Organizacao.cnpj) — alguns
+                // ERPs (ex.: Benner) exigem esse filtro para retornar os produtos
 }
 
 // Formato já traduzido para o nosso Catálogo — cada conector é

@@ -53,6 +53,7 @@ async function autenticar(config: ConfigConector): Promise<string> {
     username: config.usuario,
     password: config.senha,
     client_id: 'Swagger',
+    client_secret: '',
   })
 
   const resposta = await fetch(tokenUrl, {
@@ -62,7 +63,8 @@ async function autenticar(config: ConfigConector): Promise<string> {
   })
 
   if (!resposta.ok) {
-    throw new Error(`Falha ao autenticar no Benner (HTTP ${resposta.status}) — confira usuário, senha e o link de integração`)
+    const corpoErro = await resposta.text().catch(() => '')
+    throw new Error(`Falha ao autenticar no Benner (HTTP ${resposta.status})${corpoErro ? ` — ${corpoErro.slice(0, 300)}` : ' — confira usuário, senha e o link de integração'}`)
   }
 
   const dados = (await resposta.json()) as TokenRespostaBenner
@@ -99,11 +101,17 @@ function mapearItem(produto: ProdutoBenner): ItemErpBruto {
 export const conectorBenner: ConectorErp = {
   async buscarItens(config: ConfigConector): Promise<ItemErpBruto[]> {
     const token = await autenticar(config)
-    const dataUrl = `${baseUrl(config.urlIntegracao)}/api/Produtos/ConsultarProduto`
+
+    if (!config.cnpj) {
+      throw new Error('CNPJ da organização não cadastrado — obrigatório para consultar produtos no Benner')
+    }
+    const cnpjLimpo = config.cnpj.replace(/\D/g, '')
+
+    const dataUrl = `${baseUrl(config.urlIntegracao)}/api/Produtos/ConsultarProduto?cnpjEmpresa=${cnpjLimpo}`
 
     const resposta = await fetch(dataUrl, {
       method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
     })
 
     if (!resposta.ok) {
