@@ -31,6 +31,7 @@ import { analiseCplRoutes } from './modules/analise-cpl/analise-cpl.routes'
 import { definicaoContratacaoRoutes } from './modules/definicao-contratacao/definicao-contratacao.routes'
 import { editalRoutes } from './modules/edital/edital.routes'
 import { pcaRoutes } from './modules/pca/pca.routes'
+import { integracaoErpRoutes } from './modules/integracao-erp/integracao-erp.routes'
 
 const app = Fastify({ logger: true, bodyLimit: 52428800 })
 
@@ -81,6 +82,7 @@ app.register(analiseCplRoutes)
 app.register(definicaoContratacaoRoutes)
 app.register(editalRoutes)
 app.register(pcaRoutes)
+app.register(integracaoErpRoutes)
 
 const start = async () => {
   try {
