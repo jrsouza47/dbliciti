@@ -170,6 +170,18 @@ export async function cancelarDfd(idDfd: string, idOrganizacao: string) {
   return prisma.dfd.update({ where: { id: idDfd }, data: { status: DFD_STATUS.CANCELADO } })
 }
 
+// Exclusão definitiva — permitida apenas para rascunhos (nunca enviados,
+// portanto sem sugestões de IA, item consolidado ou histórico oficial
+// que justifique manter um registro de auditoria).
+export async function excluirDfd(idDfd: string, idOrganizacao: string) {
+  const dfd = await prisma.dfd.findFirst({ where: { id: idDfd, idOrganizacao } })
+  if (!dfd) throw new Error('Demanda não encontrada')
+  if (dfd.status !== DFD_STATUS.RASCUNHO) throw new Error('Somente demandas em rascunho podem ser excluídas — demandas enviadas devem ser canceladas')
+
+  await prisma.dfd.delete({ where: { id: idDfd } })
+  return { excluido: true }
+}
+
 // ── Listagens ────────────────────────────────────────────────
 export async function listarDfdsUnidade(idOrganizacao: string, filtros: {
   idPlano?: string

@@ -5,7 +5,7 @@
 
 import { FastifyInstance } from 'fastify'
 import {
-  criarDfd, atualizarDfd, enviarDfd, cancelarDfd,
+  criarDfd, atualizarDfd, enviarDfd, cancelarDfd, excluirDfd,
   listarDfdsUnidade, obterDetalheDfd,
 } from './dfd.service'
 
@@ -79,6 +79,17 @@ export async function dfdRoutes(app: FastifyInstance) {
     try {
       const dfd = await cancelarDfd(id, idOrganizacao)
       return reply.send({ dfd, mensagem: 'Demanda cancelada' })
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
+  })
+
+  // DELETE /pca/dfd/:id?idOrganizacao= — apenas rascunhos
+  app.delete('/pca/dfd/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    try {
+      const resultado = await excluirDfd(id, idOrganizacao)
+      return reply.send({ ...resultado, mensagem: 'Rascunho excluído' })
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 }
