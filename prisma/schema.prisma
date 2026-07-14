@@ -312,7 +312,7 @@ model ItemCatalogo {
   codigoInterno      String   @map("codigo_interno")
   nome               String
   descricaoTecnica   String   @map("descricao_tecnica")
-  tipo               Int      @default(1)
+  tipo               Int      @default(1) // 1=Bem 2=Servico 3=Obra 4=TIC (alinhado ao Tipo do objeto do PCA)
   unidadeMedida      String   @map("unidade_medida")
   idCategoria        String?  @map("id_categoria")
   codigoCatmatCatser String?  @map("codigo_catmat_catser")

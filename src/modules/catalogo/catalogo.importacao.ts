@@ -1,7 +1,8 @@
 import { read, utils } from 'xlsx'
 import prisma from '../../shared/prisma'
+import { tipoItemInfo } from './catalogo.constants'
 
-// Domínio: tipo 1=Material, 2=Servico | status 1=Rascunho
+// Domínio: tipo 1=Bem, 2=Servico, 3=Obra, 4=TIC | status 1=Rascunho
 
 interface LinhaImportacao {
   nome?: string
@@ -76,14 +77,14 @@ export async function processarImportacao(
     }
 
     const tipoStr = String(linha.tipo).trim()
-    const tiposValidos = ['Material', 'Servico']
-    if (!tiposValidos.includes(tipoStr)) {
+    const info = tipoItemInfo(tipoStr)
+    if (!info) {
       erros++
-      relatorio.push({ linha: numeroLinha, status: 'erro', nome: linha.nome, motivo: `Tipo "${linha.tipo}" inválido. Use: Material ou Servico` })
+      relatorio.push({ linha: numeroLinha, status: 'erro', nome: linha.nome, motivo: `Tipo "${linha.tipo}" inválido. Use: Bem, Servico, Obra ou TIC` })
       continue
     }
 
-    const tipoInt = tipoStr === 'Material' ? 1 : 2
+    const tipoInt = info.int
 
     try {
       const total = await prisma.itemCatalogo.count({ where: { idOrganizacao } })

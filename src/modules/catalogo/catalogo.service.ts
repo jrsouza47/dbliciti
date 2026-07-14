@@ -1,6 +1,7 @@
 import prisma from '../../shared/prisma'
+import { tipoItemInfo } from './catalogo.constants'
 
-// Domínio: tipo 1=Material, 2=Servico | status 1=Rascunho, 2=Ativo, 3=Reprovado, 4=Inativo
+// Domínio: tipo 1=Bem, 2=Servico, 3=Obra, 4=TIC | status 1=Rascunho, 2=Ativo, 3=Reprovado, 4=Inativo
 
 export async function listarItens(organizacaoId: string) {
   return prisma.itemCatalogo.findMany({
@@ -34,9 +35,10 @@ export async function criarItem(dados: {
   })
 
   const seq = String(total + 1).padStart(6, '0')
-  const tipoPrefix = dados.tipo === 'Material' ? 'MAT' : 'SRV'
-  const codigoInterno = `CAT-${tipoPrefix}-${seq}`
-  const tipoInt = dados.tipo === 'Material' ? 1 : 2
+  const info = tipoItemInfo(dados.tipo)
+  if (!info) throw new Error(`Tipo "${dados.tipo}" inválido. Use: Bem, Servico, Obra ou TIC`)
+  const codigoInterno = `CAT-${info.prefixo}-${seq}`
+  const tipoInt = info.int
 
   return prisma.itemCatalogo.create({
     data: {
