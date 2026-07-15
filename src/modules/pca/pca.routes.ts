@@ -11,6 +11,7 @@ import { dfdRoutes } from './dfd.routes'
 import { sugestaoIaRoutes } from './sugestao-ia.routes'
 import { consolidacaoRoutes } from './consolidacao.routes'
 import { riscoRoutes } from './risco.routes'
+import { aprovacaoRoutes } from './aprovacao.routes'
 
 export async function pcaRoutes(app: FastifyInstance) {
   await app.register(planoRoutes)
@@ -18,4 +19,5 @@ export async function pcaRoutes(app: FastifyInstance) {
   await app.register(sugestaoIaRoutes)
   await app.register(consolidacaoRoutes)
   await app.register(riscoRoutes)
+  await app.register(aprovacaoRoutes)
 }
