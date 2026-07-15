@@ -14,6 +14,7 @@ interface CriarDfdInput {
   idCentroCusto?: string
   tipoObjeto?: string
   codigoSistemaCorporativo?: string
+  idItemCatalogo?: string
   unidadeFornecimento?: string
   quantidade?: number
   descricaoObjeto?: string
@@ -66,7 +67,10 @@ export async function criarDfd(input: CriarDfdInput) {
   if (!plano) throw new Error('Plano de Contratações Anual não encontrado para esta organização')
   validarPlanoAbertoParaElaboracao(plano)
 
-  const idItemCatalogo = await resolverDeParaCatalogo(input.idOrganizacao, input.codigoSistemaCorporativo)
+  // Se o formulário já enviou o item escolhido diretamente (Item do catálogo M1),
+  // usa esse valor. Só cai para o de-para por código corporativo quando não vier.
+  const idItemCatalogo = input.idItemCatalogo
+    ?? await resolverDeParaCatalogo(input.idOrganizacao, input.codigoSistemaCorporativo)
   const numero = await gerarNumeroDfd(input.idOrganizacao, plano.ano)
 
   const dfd = await prisma.dfd.create({
@@ -101,9 +105,8 @@ export async function atualizarDfd(idDfd: string, input: AtualizarDfdInput) {
     throw new Error('Demanda já enviada — campos bloqueados para o Setor Requisitante')
   }
 
-  const idItemCatalogo = input.codigoSistemaCorporativo
-    ? await resolverDeParaCatalogo(input.idOrganizacao, input.codigoSistemaCorporativo)
-    : undefined
+  const idItemCatalogo = input.idItemCatalogo
+    ?? (input.codigoSistemaCorporativo ? await resolverDeParaCatalogo(input.idOrganizacao, input.codigoSistemaCorporativo) : undefined)
 
   const atualizada = await prisma.dfd.update({
     where: { id: idDfd },
