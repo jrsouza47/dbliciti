@@ -31,6 +31,19 @@ export const PRIORIDADE = {
   ALTA:  3,
 } as const
 
+// Tela 5 — Gestão de riscos (item 9.4 da norma)
+export const PROBABILIDADE_RISCO = {
+  BAIXA: 1,
+  MEDIA: 2,
+  ALTA:  3,
+} as const
+
+export const IMPACTO_RISCO = {
+  BAIXO: 1,
+  MEDIO: 2,
+  ALTO:  3,
+} as const
+
 export const TIPOS_OBJETO = ['BEM', 'SERVICO', 'OBRA', 'TIC'] as const
 
 // Janela oficial de envio de demandas — 01/jan a 10/fev (norma, item 7)

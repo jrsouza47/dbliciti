@@ -1358,6 +1358,8 @@ model RiscoItemPca {
   id               String  @id @default(uuid())
   idItemPca        String  @map("id_item_pca")
   hipotese         String
+  probabilidade    Int     @default(2) // 1=Baixa 2=Media 3=Alta
+  impacto          Int     @default(2) // 1=Baixo 2=Medio 3=Alto
   medidaPreventiva String  @map("medida_preventiva")
   medidaMitigadora String  @map("medida_mitigadora")
   idResponsavel    String? @map("id_responsavel") // Gestor de Riscos
