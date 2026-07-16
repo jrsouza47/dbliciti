@@ -52,8 +52,8 @@ export async function aprovacaoRoutes(app: FastifyInstance) {
       return reply.status(400).send({ erro: 'idOrganizacao, idUsuario e decisao obrigatorios' })
     }
     try {
-      const item = await decidirAprovacao(id, { idOrganizacao, idUsuario, decisao, motivo })
-      return reply.send({ item })
+      const resultado = await decidirAprovacao(id, { idOrganizacao, idUsuario, decisao, motivo })
+      return reply.send(resultado)
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 }

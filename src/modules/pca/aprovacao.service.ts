@@ -11,7 +11,7 @@
 // ============================================================
 
 import prisma from '../../shared/prisma'
-import { ITEM_PCA_STATUS } from './pca.constants'
+import { ITEM_PCA_STATUS, DFD_STATUS } from './pca.constants'
 
 type Decisao = 'APROVAR' | 'REPROVAR' | 'DEVOLVER'
 
@@ -151,12 +151,15 @@ export async function decidirAprovacao(idItemPca: string, input: {
     })
   }
 
-  // DEVOLVER — volta para a GECOP ajustar, não é uma decisão final
-  return prisma.itemPca.update({
-    where: { id: idItemPca },
-    data: {
-      status: ITEM_PCA_STATUS.EM_ELABORACAO,
-      motivoRejeicao: input.motivo.trim(),
-    },
+  // DEVOLVER — as demandas de origem voltam para quem elaborou, com o
+  // motivo anexado, para ajuste. Quem consolida decide se e como
+  // reconsolidar depois que forem corrigidas e reenviadas. O Item PCA
+  // não sobrevive sem as demandas que o formaram, por isso é desfeito.
+  await prisma.dfd.updateMany({
+    where: { idItemPca },
+    data: { status: DFD_STATUS.DEVOLVIDO, motivoDevolucao: input.motivo.trim(), idItemPca: null },
   })
+  await prisma.riscoItemPca.deleteMany({ where: { idItemPca } })
+  await prisma.itemPca.delete({ where: { id: idItemPca } })
+  return { devolvido: true }
 }

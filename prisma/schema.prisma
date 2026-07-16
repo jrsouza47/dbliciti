@@ -1230,10 +1230,11 @@ model Dfd {
   dataDesejada                   DateTime @map("data_desejada") @db.Date
   idItemVinculado                 String?  @map("id_item_vinculado") // dependência entre itens (auto-relação)
 
-  status                   Int       @default(1) // 1=RASCUNHO 2=ENVIADO 3=CONSOLIDADO 4=CANCELADO
+  status                   Int       @default(1) // 1=RASCUNHO 2=ENVIADO 3=CONSOLIDADO 4=CANCELADO 5=DEVOLVIDO
   foraDaJanela             Boolean   @default(false) @map("fora_da_janela") // inclusão fora de 01/jan-10/fev (item 9.1)
   justificativaForaJanela  String?   @map("justificativa_fora_janela")
   dataEnvio                DateTime? @map("data_envio")
+  motivoDevolucao          String?   @map("motivo_devolucao") // preenchido quando a Autoridade Competente devolve o Item PCA
 
   idItemPca String? @map("id_item_pca") // preenchido na consolidação pela CPLIC
 

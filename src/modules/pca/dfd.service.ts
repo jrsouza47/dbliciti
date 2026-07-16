@@ -97,11 +97,11 @@ export async function criarDfd(input: CriarDfdInput) {
   return dfd
 }
 
-// ── Atualizar demanda (somente enquanto RASCUNHO) ───────────
+// ── Atualizar demanda (RASCUNHO ou DEVOLVIDO) ───────────
 export async function atualizarDfd(idDfd: string, input: AtualizarDfdInput) {
   const dfd = await prisma.dfd.findFirst({ where: { id: idDfd, idOrganizacao: input.idOrganizacao } })
   if (!dfd) throw new Error('Demanda não encontrada')
-  if (dfd.status !== DFD_STATUS.RASCUNHO) {
+  if (dfd.status !== DFD_STATUS.RASCUNHO && dfd.status !== DFD_STATUS.DEVOLVIDO) {
     throw new Error('Demanda já enviada — campos bloqueados para o Setor Requisitante')
   }
 
@@ -128,11 +128,11 @@ export async function atualizarDfd(idDfd: string, input: AtualizarDfdInput) {
   return atualizada
 }
 
-// ── Enviar demanda (RASCUNHO → ENVIADO) ─────────────────────
+// ── Enviar demanda (RASCUNHO ou DEVOLVIDO → ENVIADO) ─────────
 export async function enviarDfd(idDfd: string, input: EnviarDfdInput) {
   const dfd = await prisma.dfd.findFirst({ where: { id: idDfd, idOrganizacao: input.idOrganizacao } })
   if (!dfd) throw new Error('Demanda não encontrada')
-  if (dfd.status !== DFD_STATUS.RASCUNHO) throw new Error('Demanda já foi enviada')
+  if (dfd.status !== DFD_STATUS.RASCUNHO && dfd.status !== DFD_STATUS.DEVOLVIDO) throw new Error('Demanda já foi enviada')
 
   // Regra: envio só é permitido com todos os campos mínimos preenchidos (item 9.1)
   const faltando = CAMPOS_MINIMOS_ENVIO_DFD.filter((campo) => {
@@ -155,6 +155,7 @@ export async function enviarDfd(idDfd: string, input: EnviarDfdInput) {
       dataEnvio: new Date(),
       foraDaJanela,
       justificativaForaJanela: foraDaJanela ? input.justificativaForaJanela : null,
+      motivoDevolucao: null,
     },
   })
 
