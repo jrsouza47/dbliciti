@@ -152,15 +152,14 @@ export async function decidirAprovacao(idItemPca: string, input: {
     return { reprovado: true }
   }
 
-  // DEVOLVER — as demandas de origem voltam para quem elaborou, com o
-  // motivo anexado, para ajuste. Quem consolida decide se e como
-  // reconsolidar depois que forem corrigidas e reenviadas. O Item PCA
-  // não sobrevive sem as demandas que o formaram, por isso é desfeito.
+  // SOLICITAR AJUSTE — a demanda de origem volta para Rascunho (não é
+  // um status à parte), com o comentário anexado, para quem elaborou
+  // ajustar e reenviar pelo mesmo fluxo de sempre.
   await prisma.dfd.updateMany({
     where: { idItemPca },
-    data: { status: DFD_STATUS.DEVOLVIDO, motivoDevolucao: input.motivo.trim(), idItemPca: null },
+    data: { status: DFD_STATUS.RASCUNHO, motivoDevolucao: input.motivo.trim(), idItemPca: null },
   })
   await prisma.riscoItemPca.deleteMany({ where: { idItemPca } })
   await prisma.itemPca.delete({ where: { id: idItemPca } })
-  return { devolvido: true }
+  return { ajusteSolicitado: true }
 }
