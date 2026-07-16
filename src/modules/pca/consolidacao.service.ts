@@ -142,7 +142,7 @@ export async function consolidarDemandas(input: ConsolidarInput) {
 export async function listarItensPca(idOrganizacao: string, filtros: { idPlano?: string; status?: number }) {
   return prisma.itemPca.findMany({
     where: { idOrganizacao, idPlano: filtros.idPlano, status: filtros.status },
-    include: { dfdsOrigem: { select: { id: true, numero: true, idCentroCusto: true, centroCusto: true } }, riscos: true },
+    include: { dfdsOrigem: { select: { id: true, numero: true, idCentroCusto: true, centroCusto: true, solicitante: { select: { id: true, nome: true } } } }, riscos: true },
     orderBy: { criadoEm: 'desc' },
   })
 }
