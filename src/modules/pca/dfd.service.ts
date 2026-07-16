@@ -201,7 +201,7 @@ export async function listarDfdsUnidade(idOrganizacao: string, filtros: {
       idSolicitante: filtros.idSolicitante,
       status: filtros.status,
     },
-    include: { sugestoesIa: true, itemVinculado: { select: { id: true, numero: true, descricaoObjeto: true } } },
+    include: { sugestoesIa: true, itemVinculado: { select: { id: true, numero: true, descricaoObjeto: true } }, centroCusto: true },
     orderBy: { criadoEm: 'desc' },
   })
 }
