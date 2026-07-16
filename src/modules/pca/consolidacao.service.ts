@@ -18,10 +18,17 @@ interface ConsolidarInput {
 }
 
 async function gerarNumeroItemPca(idOrganizacao: string, ano: number): Promise<string> {
-  const total = await prisma.itemPca.count({
+  // Antes usava count() — quebrou quando passamos a apagar itens
+  // reprovados/ajustados (a contagem de itens restantes fica menor que
+  // o maior número já emitido, e o próximo número gerado colide com um
+  // que já existe). Usar o maior número já emitido evita isso.
+  const ultimo = await prisma.itemPca.findFirst({
     where: { idOrganizacao, numero: { startsWith: `PCA-${ano}-` } },
+    orderBy: { numero: 'desc' },
+    select: { numero: true },
   })
-  return `PCA-${ano}-${String(total + 1).padStart(5, '0')}`
+  const ultimoSeq = ultimo ? parseInt(ultimo.numero.slice(-5), 10) || 0 : 0
+  return `PCA-${ano}-${String(ultimoSeq + 1).padStart(5, '0')}`
 }
 
 async function lerValorCorteRisco(idOrganizacao: string): Promise<number> {
@@ -84,36 +91,49 @@ export async function consolidarDemandas(input: ConsolidarInput) {
   const valorCorte = await lerValorCorteRisco(input.idOrganizacao)
   const exigeGestaoRisco = valorTotal >= valorCorte
 
-  const numero = await gerarNumeroItemPca(input.idOrganizacao, plano.ano)
+  // Tenta gerar o número e criar o item; se colidir (corrida entre
+  // consolidações quase simultâneas), tenta de novo com o próximo número.
+  let itemPca
+  let tentativas = 0
+  while (true) {
+    tentativas++
+    const numero = await gerarNumeroItemPca(input.idOrganizacao, plano.ano)
+    try {
+      itemPca = await prisma.$transaction(async (tx) => {
+        const item = await tx.itemPca.create({
+          data: {
+            idOrganizacao: input.idOrganizacao,
+            idPlano: input.idPlano,
+            numero,
+            tipoObjeto: primeira.tipoObjeto,
+            descricaoObjeto: input.descricaoObjeto ?? primeira.descricaoObjeto,
+            idItemCatalogo: primeira.idItemCatalogo,
+            unidadeFornecimento: input.unidadeFornecimento ?? primeira.unidadeFornecimento,
+            quantidadeTotal,
+            valorTotal,
+            prioridade,
+            dataDesejada,
+            status: ITEM_PCA_STATUS.EM_ELABORACAO,
+            idConsolidadoPor: input.idUsuarioConsolidador,
+            dataConsolidacao: new Date(),
+            exigeGestaoRisco,
+          },
+        })
 
-  const itemPca = await prisma.$transaction(async (tx) => {
-    const item = await tx.itemPca.create({
-      data: {
-        idOrganizacao: input.idOrganizacao,
-        idPlano: input.idPlano,
-        numero,
-        tipoObjeto: primeira.tipoObjeto,
-        descricaoObjeto: input.descricaoObjeto ?? primeira.descricaoObjeto,
-        idItemCatalogo: primeira.idItemCatalogo,
-        unidadeFornecimento: input.unidadeFornecimento ?? primeira.unidadeFornecimento,
-        quantidadeTotal,
-        valorTotal,
-        prioridade,
-        dataDesejada,
-        status: ITEM_PCA_STATUS.EM_ELABORACAO,
-        idConsolidadoPor: input.idUsuarioConsolidador,
-        dataConsolidacao: new Date(),
-        exigeGestaoRisco,
-      },
-    })
+        await tx.dfd.updateMany({
+          where: { id: { in: input.idsDfd } },
+          data: { idItemPca: item.id, status: DFD_STATUS.CONSOLIDADO },
+        })
 
-    await tx.dfd.updateMany({
-      where: { id: { in: input.idsDfd } },
-      data: { idItemPca: item.id, status: DFD_STATUS.CONSOLIDADO },
-    })
-
-    return item
-  })
+        return item
+      })
+      break
+    } catch (err: any) {
+      const colisaoDeNumero = err?.code === 'P2002' && String(err?.meta?.target ?? '').includes('numero')
+      if (colisaoDeNumero && tentativas < 5) continue
+      throw err
+    }
+  }
 
   return itemPca
 }
@@ -122,7 +142,7 @@ export async function consolidarDemandas(input: ConsolidarInput) {
 export async function listarItensPca(idOrganizacao: string, filtros: { idPlano?: string; status?: number }) {
   return prisma.itemPca.findMany({
     where: { idOrganizacao, idPlano: filtros.idPlano, status: filtros.status },
-    include: { dfdsOrigem: { select: { id: true, numero: true, idCentroCusto: true } }, riscos: true },
+    include: { dfdsOrigem: { select: { id: true, numero: true, idCentroCusto: true, centroCusto: true } }, riscos: true },
     orderBy: { criadoEm: 'desc' },
   })
 }
