@@ -140,15 +140,16 @@ export async function decidirAprovacao(idItemPca: string, input: {
   }
 
   if (input.decisao === 'REPROVAR') {
-    return prisma.itemPca.update({
-      where: { id: idItemPca },
-      data: {
-        status: ITEM_PCA_STATUS.REJEITADO,
-        idAprovador: input.idUsuario,
-        dataAprovacao: new Date(),
-        motivoRejeicao: input.motivo.trim(),
-      },
+    // A demanda também precisa saber que foi reprovada — diferente do
+    // "devolver", aqui é definitivo: fica visível com o motivo, mas não
+    // volta a ser editável (não tem "reenviar" nesse status).
+    await prisma.dfd.updateMany({
+      where: { idItemPca },
+      data: { status: DFD_STATUS.REJEITADO, motivoDevolucao: input.motivo.trim(), idItemPca: null },
     })
+    await prisma.riscoItemPca.deleteMany({ where: { idItemPca } })
+    await prisma.itemPca.delete({ where: { id: idItemPca } })
+    return { reprovado: true }
   }
 
   // DEVOLVER — as demandas de origem voltam para quem elaborou, com o

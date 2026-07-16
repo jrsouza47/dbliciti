@@ -9,6 +9,7 @@ export const DFD_STATUS = {
   CONSOLIDADO: 3,
   CANCELADO:   4,
   DEVOLVIDO:   5,
+  REJEITADO:   6,
 } as const
 
 export const ITEM_PCA_STATUS = {
