@@ -281,37 +281,56 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'idOrganizacao e obrigatorio' })
     }
 
-    const vinculo = await prisma.usuarioOrganizacao.findFirst({
-      where: {
-        idUsuario: usuarioToken.sub,
-        idOrganizacao,
-        ativo: true,
-        organizacao: { ativo: true },
-      },
-      include: {
-        organizacao: { select: { id: true, nome: true, slug: true, ativo: true, modelo: true, idGrupo: true } },
-      },
-    })
+    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioToken.sub } })
+    if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuario nao encontrado ou inativo' })
 
-    if (!vinculo) {
-      return reply.status(403).send({ error: 'Usuario nao tem acesso a essa organizacao' })
+    let orgDestino: { id: string; nome: string; slug: string; modelo: number; idGrupo: string | null }
+    let perfilDestino = usuario.perfil
+    let alcadaDestino: number | null = usuario.alcadaValor ? Number(usuario.alcadaValor) : null
+
+    // Admin DBS — acessa qualquer organizacao ativa, sem vinculo individual
+    // em usuario_organizacao (mesmo criterio usado em /auth/me).
+    if (usuario.perfil === 'Admin') {
+      const org = await prisma.organizacao.findUnique({
+        where: { id: idOrganizacao },
+        select: { id: true, nome: true, slug: true, ativo: true, modelo: true, idGrupo: true },
+      })
+      if (!org || !org.ativo) return reply.status(403).send({ error: 'Organizacao nao encontrada ou inativa' })
+      orgDestino = org
+      perfilDestino = 'Admin'
+      alcadaDestino = null
+    } else {
+      const vinculo = await prisma.usuarioOrganizacao.findFirst({
+        where: {
+          idUsuario: usuarioToken.sub,
+          idOrganizacao,
+          ativo: true,
+          organizacao: { ativo: true },
+        },
+        include: {
+          organizacao: { select: { id: true, nome: true, slug: true, ativo: true, modelo: true, idGrupo: true } },
+        },
+      })
+      if (!vinculo) {
+        return reply.status(403).send({ error: 'Usuario nao tem acesso a essa organizacao' })
+      }
+      orgDestino = vinculo.organizacao
+      perfilDestino = vinculo.perfil
+      alcadaDestino = vinculo.alcadaValor ? Number(vinculo.alcadaValor) : null
     }
 
-    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioToken.sub } })
-    if (!usuario) return reply.status(401).send({ error: 'Usuario nao encontrado' })
-
-    const usaFiliais = (await lerConfiguracao(vinculo.organizacao.id, 'usaFiliais').catch(() => false)) as boolean
-    const usaGrupo   = (await lerConfiguracao(vinculo.organizacao.id, 'usaGrupo').catch(() => false)) as boolean
+    const usaFiliais = (await lerConfiguracao(orgDestino.id, 'usaFiliais').catch(() => false)) as boolean
+    const usaGrupo   = (await lerConfiguracao(orgDestino.id, 'usaGrupo').catch(() => false)) as boolean
 
     let idFilialFinal: string | null = null
     let nomeFilialFinal: string | null = null
 
     if (!usaFiliais) {
-      const fv = await getFilialVirtual(vinculo.organizacao.id)
+      const fv = await getFilialVirtual(orgDestino.id)
       idFilialFinal   = fv?.id   ?? null
       nomeFilialFinal = fv?.nome ?? null
     } else {
-      const filialAtiva = await getPrimeiraFilialUsuario(usuario.id, vinculo.organizacao.id)
+      const filialAtiva = await getPrimeiraFilialUsuario(usuario.id, orgDestino.id)
       idFilialFinal   = filialAtiva?.id   ?? null
       nomeFilialFinal = filialAtiva?.nome ?? null
     }
@@ -321,13 +340,13 @@ export async function authRoutes(app: FastifyInstance) {
       nome: usuario.nome,
       email: usuario.email,
       login: usuario.login,
-      perfil: vinculo.perfil,
-      alcadaValor: vinculo.alcadaValor ? Number(vinculo.alcadaValor) : null,
-      idOrganizacao: vinculo.organizacao.id,
-      nomeOrganizacao: vinculo.organizacao.nome,
-      slugOrganizacao: vinculo.organizacao.slug,
-      modeloOrganizacao: vinculo.organizacao.modelo,
-      idGrupo: vinculo.organizacao.idGrupo,
+      perfil: perfilDestino,
+      alcadaValor: alcadaDestino,
+      idOrganizacao: orgDestino.id,
+      nomeOrganizacao: orgDestino.nome,
+      slugOrganizacao: orgDestino.slug,
+      modeloOrganizacao: orgDestino.modelo,
+      idGrupo: orgDestino.idGrupo,
       usaFiliais,
       isMatriz: !usaFiliais,
       usaGrupo,
