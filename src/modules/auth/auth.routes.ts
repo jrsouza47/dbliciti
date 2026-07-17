@@ -284,7 +284,7 @@ export async function authRoutes(app: FastifyInstance) {
     const usuario = await prisma.usuario.findUnique({ where: { id: usuarioToken.sub } })
     if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuario nao encontrado ou inativo' })
 
-    let orgDestino: { id: string; nome: string; slug: string; modelo: number; idGrupo: string | null }
+    let orgDestino: { id: string; nome: string; slug: string | null; modelo: number; idGrupo: string | null }
     let perfilDestino = usuario.perfil
     let alcadaDestino: number | null = usuario.alcadaValor ? Number(usuario.alcadaValor) : null
 
