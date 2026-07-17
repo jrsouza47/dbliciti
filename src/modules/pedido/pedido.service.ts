@@ -37,6 +37,50 @@ import {
 //   - Falta de orçamento: status 12 "Aguardando dotação" (configurável por org).
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Vínculo obrigatório com o PCA (item 9.6 da especificação) ───────────────
+// Todo Pedido precisa apontar para um Item PCA aprovado/publicado do plano
+// vigente. Se a data desejada do item estiver a menos de 60 dias, exige
+// justificativa (instrução processual) em vez de bloquear — mesmo padrão já
+// usado no DFD (foraDaJanela / justificativaForaJanela).
+const JANELA_MINIMA_DIAS_PCA = 60
+
+async function validarVinculoPca(
+  idOrganizacao: string,
+  idItemPca: string,
+  justificativaForaJanela?: string
+): Promise<{ foraDaJanelaPca: boolean }> {
+  const item = await prisma.itemPca.findFirst({
+    where: { id: idItemPca, idOrganizacao },
+  })
+  if (!item) throw new Error('Item do PCA não encontrado para esta organização')
+
+  // status: 1=EM_ELABORACAO 2=EM_APROVACAO 3=APROVADO 4=PUBLICADO 5=REJEITADO
+  if (![3, 4].includes(item.status)) {
+    throw new Error(
+      'Só é possível vincular um Pedido a um Item do PCA aprovado ou publicado (item 9.6 da norma)'
+    )
+  }
+
+  let foraDaJanelaPca = false
+  if (item.dataDesejada) {
+    const hoje = new Date()
+    const diffDias = Math.floor(
+      (item.dataDesejada.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24)
+    )
+    if (diffDias < JANELA_MINIMA_DIAS_PCA) {
+      if (!justificativaForaJanela || justificativaForaJanela.trim().length < 10) {
+        throw new Error(
+          `Este item está a menos de ${JANELA_MINIMA_DIAS_PCA} dias da data desejada — ` +
+          'informe a instrução processual/justificativa para prosseguir (item 9.6 da norma)'
+        )
+      }
+      foraDaJanelaPca = true
+    }
+  }
+
+  return { foraDaJanelaPca }
+}
+
 async function gerarNumeroPedido(idOrganizacao: string): Promise<string> {
   // Lê configurações da organização
   const org = await prisma.organizacao.findUnique({
@@ -77,7 +121,13 @@ export async function previewNumeroPedido(idOrganizacao: string): Promise<string
 
 // ── Criar pedido (status 1 = Rascunho) ───────────────────────────────────────
 export async function criarPedido(data: CriarPedidoInput) {
-  const { itens, ...pedidoData } = data
+  const { itens, idItemPca, justificativaForaJanela, ...pedidoData } = data
+
+  const { foraDaJanelaPca } = await validarVinculoPca(
+    pedidoData.idOrganizacao,
+    idItemPca,
+    justificativaForaJanela
+  )
 
   const valorTotal = itens.reduce(
     (acc: number, i: CriarPedidoInput['itens'][0]) =>
@@ -88,6 +138,9 @@ export async function criarPedido(data: CriarPedidoInput) {
   return prisma.pedido.create({
     data: {
       ...pedidoData,
+      idItemPca,
+      foraDaJanelaPca,
+      justificativaForaJanelaPca: justificativaForaJanela,
       numero: await gerarNumeroPedido(pedidoData.idOrganizacao),
       valorTotal,
       status: 1,
@@ -139,6 +192,7 @@ export async function buscarPedido(id: string) {
       },
       solicitante: { select: { id: true, nome: true, email: true, perfil: true } },
       centroCusto: { select: { id: true, codigo: true, descricao: true } },
+      itemPca: { select: { id: true, numero: true, descricaoObjeto: true } },
       analisesCpl: {
         orderBy: { criadoEm: 'desc' },
         take: 1,
@@ -294,7 +348,14 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
     throw new Error('Apenas pedidos em Rascunho podem ser editados')
 
   // Extrai os campos do model Pedido
-  const { itens, idCentroCusto, idAlcada, criticidade, justificativa, observacao, tipoPedido } = data
+  const { itens, idCentroCusto, idAlcada, criticidade, justificativa, observacao, tipoPedido, idItemPca, justificativaForaJanela } = data
+
+  // Se o vínculo com o PCA está sendo alterado, revalida (item 9.6 da norma)
+  let foraDaJanelaPca: boolean | undefined
+  if (idItemPca !== undefined) {
+    const resultado = await validarVinculoPca(pedido.idOrganizacao, idItemPca, justificativaForaJanela)
+    foraDaJanelaPca = resultado.foraDaJanelaPca
+  }
 
   // Recalcula valor total se itens forem enviados
   let valorTotal = Number(pedido.valorTotal)
@@ -323,6 +384,7 @@ export async function atualizarPedido(id: string, data: AtualizarPedidoInput) {
       ...(justificativa !== undefined ? { justificativa } : {}),
       ...(observacao    !== undefined ? { observacao    } : {}),
       ...(tipoPedido    !== undefined ? { tipoPedido    } : {}),
+      ...(idItemPca     !== undefined ? { idItemPca, foraDaJanelaPca, justificativaForaJanelaPca: justificativaForaJanela } : {}),
       valorTotal,
     },
     include: {

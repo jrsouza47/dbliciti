@@ -4,6 +4,10 @@ export const criarPedidoSchema = z.object({
   idOrganizacao: z.string(),
   idSolicitante: z.string(),
   idCentroCusto: z.string().optional(), // Obrigatoriedade controlada pelo frontend via configuração da organização
+  // Vínculo obrigatório com o PCA (item 9.6 da especificação) — todo pedido
+  // precisa constar do PCA vigente. Sem isso, a criação é bloqueada.
+  idItemPca: z.string({ required_error: 'Selecione o item do PCA vinculado a este pedido' }),
+  justificativaForaJanela: z.string().min(10).optional(), // exigida se dataDesejada do item < 60 dias
   justificativa: z.string().min(10),
   itens: z.array(z.object({
     idItem: z.string(),
@@ -44,6 +48,8 @@ export const atualizarPedidoSchema = z.object({
   tipoPedido:    z.number().optional(),
   observacao:    z.string().optional(),
   justificativa: z.string().min(10).optional(),
+  idItemPca:               z.string().optional(),
+  justificativaForaJanela: z.string().min(10).optional(),
   itens: z.array(z.object({
     idItem: z.string(),
     quantidade: z.number().positive(),

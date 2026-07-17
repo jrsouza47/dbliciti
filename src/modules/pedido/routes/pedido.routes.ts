@@ -98,8 +98,10 @@ export async function pedidoRoutes(app: FastifyInstance) {
   // POST /pedidos — Criar pedido (status 1 = Rascunho)
   app.post('/pedidos', async (request, reply) => {
     const data = criarPedidoSchema.parse(request.body)
-    const pedido = await criarPedido(data)
-    return reply.status(201).send(pedido)
+    try {
+      const pedido = await criarPedido(data)
+      return reply.status(201).send(pedido)
+    } catch (err: any) { return reply.status(400).send({ error: err.message }) }
   })
 
   // GET /pedidos/preview-numero?idOrganizacao= — retorna o próximo número sem criar pedido
