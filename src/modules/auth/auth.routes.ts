@@ -259,6 +259,86 @@ export async function authRoutes(app: FastifyInstance) {
     return reply.send({ token: assinarToken(novoPayload), usuario: novoPayload })
   })
 
+  // POST /auth/trocar-organizacao
+  // Troca a organizacao ativa do usuario logado (multi-empresa), sem novo
+  // login — reconstroi o JWT do zero para a organizacao de destino, igual
+  // ao que o /auth/login faz quando ha mais de uma organizacao vinculada.
+  app.post('/auth/trocar-organizacao', async (request, reply) => {
+    const authHeader = request.headers.authorization
+    if (!authHeader?.startsWith('Bearer ')) {
+      return reply.status(401).send({ error: 'Token nao fornecido' })
+    }
+
+    let usuarioToken: JwtPayload
+    try {
+      usuarioToken = verificarToken(authHeader.slice(7))
+    } catch {
+      return reply.status(401).send({ error: 'Token invalido ou expirado' })
+    }
+
+    const { idOrganizacao } = request.body as { idOrganizacao: string }
+    if (!idOrganizacao) {
+      return reply.status(400).send({ error: 'idOrganizacao e obrigatorio' })
+    }
+
+    const vinculo = await prisma.usuarioOrganizacao.findFirst({
+      where: {
+        idUsuario: usuarioToken.sub,
+        idOrganizacao,
+        ativo: true,
+        organizacao: { ativo: true },
+      },
+      include: {
+        organizacao: { select: { id: true, nome: true, slug: true, ativo: true, modelo: true, idGrupo: true } },
+      },
+    })
+
+    if (!vinculo) {
+      return reply.status(403).send({ error: 'Usuario nao tem acesso a essa organizacao' })
+    }
+
+    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioToken.sub } })
+    if (!usuario) return reply.status(401).send({ error: 'Usuario nao encontrado' })
+
+    const usaFiliais = (await lerConfiguracao(vinculo.organizacao.id, 'usaFiliais').catch(() => false)) as boolean
+    const usaGrupo   = (await lerConfiguracao(vinculo.organizacao.id, 'usaGrupo').catch(() => false)) as boolean
+
+    let idFilialFinal: string | null = null
+    let nomeFilialFinal: string | null = null
+
+    if (!usaFiliais) {
+      const fv = await getFilialVirtual(vinculo.organizacao.id)
+      idFilialFinal   = fv?.id   ?? null
+      nomeFilialFinal = fv?.nome ?? null
+    } else {
+      const filialAtiva = await getPrimeiraFilialUsuario(usuario.id, vinculo.organizacao.id)
+      idFilialFinal   = filialAtiva?.id   ?? null
+      nomeFilialFinal = filialAtiva?.nome ?? null
+    }
+
+    const novoPayload: JwtPayload = {
+      sub: usuario.id,
+      nome: usuario.nome,
+      email: usuario.email,
+      login: usuario.login,
+      perfil: vinculo.perfil,
+      alcadaValor: vinculo.alcadaValor ? Number(vinculo.alcadaValor) : null,
+      idOrganizacao: vinculo.organizacao.id,
+      nomeOrganizacao: vinculo.organizacao.nome,
+      slugOrganizacao: vinculo.organizacao.slug,
+      modeloOrganizacao: vinculo.organizacao.modelo,
+      idGrupo: vinculo.organizacao.idGrupo,
+      usaFiliais,
+      isMatriz: !usaFiliais,
+      usaGrupo,
+      idFilial: idFilialFinal,
+      nomeFilial: nomeFilialFinal,
+      trocarSenha: usuario.trocarSenha ?? false,
+    }
+
+    return reply.send({ token: assinarToken(novoPayload), usuario: novoPayload })
+  })
+
   // GET /auth/me
   app.get('/auth/me', async (request, reply) => {
     const authHeader = request.headers.authorization
