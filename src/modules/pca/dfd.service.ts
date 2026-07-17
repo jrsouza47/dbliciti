@@ -36,10 +36,17 @@ interface EnviarDfdInput {
 
 // ── Helpers ──────────────────────────────────────────────────
 async function gerarNumeroDfd(idOrganizacao: string, ano: number): Promise<string> {
-  const total = await prisma.dfd.count({
+  // Baseado no MAIOR número já usado, não na contagem de registros — se
+  // uma demanda no meio da sequência for excluída, a contagem cai mas o
+  // maior número usado continua o mesmo, e usar count()+1 gera colisão
+  // com um número que já existe (unique constraint em idOrganizacao+numero).
+  const ultimo = await prisma.dfd.findFirst({
     where: { idOrganizacao, numero: { startsWith: `DFD-${ano}-` } },
+    orderBy: { numero: 'desc' },
+    select: { numero: true },
   })
-  const sequencial = String(total + 1).padStart(5, '0')
+  const ultimoSequencial = ultimo ? parseInt(ultimo.numero.split('-').pop() ?? '0', 10) || 0 : 0
+  const sequencial = String(ultimoSequencial + 1).padStart(5, '0')
   return `DFD-${ano}-${sequencial}`
 }
 
