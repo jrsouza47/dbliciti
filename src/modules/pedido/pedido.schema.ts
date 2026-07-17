@@ -6,7 +6,7 @@ export const criarPedidoSchema = z.object({
   idCentroCusto: z.string().optional(), // Obrigatoriedade controlada pelo frontend via configuração da organização
   // Vínculo obrigatório com o PCA (item 9.6 da especificação) — todo pedido
   // precisa constar do PCA vigente. Sem isso, a criação é bloqueada.
-  idItemPca: z.string({ required_error: 'Selecione o item do PCA vinculado a este pedido' }),
+  idItemPca: z.string().min(1, 'Selecione o item do PCA vinculado a este pedido'),
   justificativaForaJanela: z.string().min(10).optional(), // exigida se dataDesejada do item < 60 dias
   justificativa: z.string().min(10),
   itens: z.array(z.object({
