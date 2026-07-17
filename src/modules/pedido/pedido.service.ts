@@ -95,16 +95,29 @@ async function gerarNumeroPedido(idOrganizacao: string): Promise<string> {
   const reiniciaAno      = cfg.pedidoSequencialReiniciaAno !== false
   const ano              = new Date().getFullYear()
 
-  // Conta pedidos da organização (filtrado por ano se reiniciaAno)
-  const where: any = { idOrganizacao }
+  // Prefixo do número (igual ao que será montado no final), para buscar o
+  // maior número já emitido com esse mesmo prefixo/ano.
+  const prefixoNumero = usaAno ? `${prefixo}-${ano}-` : `${prefixo}-`
+
+  // Baseado no MAIOR número já usado, não na contagem de registros — se um
+  // pedido no meio da sequência for excluído, a contagem cai mas o maior
+  // número usado continua o mesmo, e usar count()+1 gera colisão com um
+  // número que já existe (mesmo problema já corrigido em gerarNumeroDfd e
+  // gerarNumeroItemPca).
+  const where: any = { idOrganizacao, numero: { startsWith: prefixoNumero } }
   if (reiniciaAno) {
     const inicio = new Date(`${ano}-01-01T00:00:00.000Z`)
     const fim    = new Date(`${ano + 1}-01-01T00:00:00.000Z`)
     where.criadoEm = { gte: inicio, lt: fim }
   }
 
-  const total = await prisma.pedido.count({ where })
-  const seq   = String(total + 1).padStart(digitos, '0')
+  const ultimo = await prisma.pedido.findFirst({
+    where,
+    orderBy: { numero: 'desc' },
+    select: { numero: true },
+  })
+  const ultimoSequencial = ultimo ? parseInt(ultimo.numero.split('-').pop() ?? '0', 10) || 0 : 0
+  const seq = String(ultimoSequencial + 1).padStart(digitos, '0')
 
   // Monta número: PREFIXO[-ANO]-SEQUENCIAL
   const partes = [prefixo]
