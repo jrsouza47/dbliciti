@@ -48,6 +48,20 @@ export const IMPACTO_RISCO = {
 
 export const TIPOS_OBJETO = ['BEM', 'SERVICO', 'OBRA', 'TIC'] as const
 
+// Tela 8 — Monitor de envio PNCP (item 9.9 da norma)
+export const PNCP_ENVIO_STATUS = {
+  PENDENTE:       'PENDENTE',
+  EM_CONFERENCIA: 'EM_CONFERENCIA',
+  ENVIADO:        'ENVIADO',
+  ERRO:           'ERRO',
+} as const
+
+export const PNCP_TIPO_ENVIO = {
+  PLANO:   'PLANO',
+  ITEM:    'ITEM',
+  REVISAO: 'REVISAO',
+} as const
+
 // Janela oficial de envio de demandas — 01/jan a 10/fev (norma, item 7)
 export function dentroJanelaEnvioDfd(data: Date = new Date()): boolean {
   const ano = data.getFullYear()

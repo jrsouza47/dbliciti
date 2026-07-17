@@ -11,7 +11,8 @@
 // ============================================================
 
 import prisma from '../../shared/prisma'
-import { ITEM_PCA_STATUS, DFD_STATUS } from './pca.constants'
+import { ITEM_PCA_STATUS, DFD_STATUS, PNCP_TIPO_ENVIO } from './pca.constants'
+import { enfileirarEnvioPncp } from './pncp.service'
 
 type Decisao = 'APROVAR' | 'REPROVAR' | 'DEVOLVER'
 
@@ -122,7 +123,7 @@ export async function decidirAprovacao(idItemPca: string, input: {
   }
 
   if (input.decisao === 'APROVAR') {
-    return prisma.itemPca.update({
+    const itemAprovado = await prisma.itemPca.update({
       where: { id: idItemPca },
       data: {
         status: ITEM_PCA_STATUS.APROVADO,
@@ -131,6 +132,24 @@ export async function decidirAprovacao(idItemPca: string, input: {
         parecerAprovacao: input.motivo?.trim() || null,
       },
     })
+
+    // Envio ao PNCP é parametrizável por empresa e independente da
+    // divulgação obrigatória no sítio (item 9.9 da norma) — só enfileira
+    // se a organização tiver habilitado pcaPncpHabilitado.
+    await enfileirarEnvioPncp({
+      idOrganizacao: input.idOrganizacao,
+      idItemPca: itemAprovado.id,
+      idPlano: itemAprovado.idPlano,
+      tipoEnvio: PNCP_TIPO_ENVIO.ITEM,
+      payload: {
+        numero: itemAprovado.numero,
+        descricaoObjeto: itemAprovado.descricaoObjeto,
+        valorTotal: Number(itemAprovado.valorTotal),
+        dataAprovacao: itemAprovado.dataAprovacao,
+      },
+    })
+
+    return itemAprovado
   }
 
   // Reprovar e devolver exigem motivo (o formulário sempre pede;
