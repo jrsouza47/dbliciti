@@ -72,7 +72,13 @@ export async function listarEnviosPncp(
   const envios = await prisma.pncpEnvioPca.findMany({
     where,
     include: {
-      itemPca: { select: { id: true, numero: true, descricaoObjeto: true } },
+      itemPca: {
+        select: {
+          id: true, numero: true, descricaoObjeto: true,
+          quantidadeTotal: true, valorTotal: true, unidadeFornecimento: true,
+          dfdsOrigem: { select: { centroCusto: { select: { id: true, codigo: true, descricao: true } } } },
+        },
+      },
       plano: { select: { id: true, ano: true, versao: true } },
       conferidoPor: { select: { id: true, nome: true } },
     },
