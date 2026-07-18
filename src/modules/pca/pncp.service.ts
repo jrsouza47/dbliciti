@@ -62,17 +62,18 @@ export async function enfileirarEnvioPncp(params: {
 // ── Listagem para o monitor (Tela 8) ──────────────────────────────────────
 export async function listarEnviosPncp(
   idOrganizacao: string,
-  filtros?: { status?: string; tipoEnvio?: string }
+  filtros?: { status?: string; tipoEnvio?: string; idPlano?: string }
 ) {
   const where: any = { idOrganizacao }
   if (filtros?.status) where.status = filtros.status
   if (filtros?.tipoEnvio) where.tipoEnvio = filtros.tipoEnvio
+  if (filtros?.idPlano) where.idPlano = filtros.idPlano
 
   const envios = await prisma.pncpEnvioPca.findMany({
     where,
     include: {
       itemPca: { select: { id: true, numero: true, descricaoObjeto: true } },
-      plano: { select: { id: true, ano: true } },
+      plano: { select: { id: true, ano: true, versao: true } },
       conferidoPor: { select: { id: true, nome: true } },
     },
     orderBy: { criadoEm: 'desc' },

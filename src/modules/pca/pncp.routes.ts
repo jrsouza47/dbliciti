@@ -13,14 +13,14 @@ import {
 
 export async function pncpRoutes(app: FastifyInstance) {
 
-  // GET /pca/pncp/envios?idOrganizacao=&status=&tipoEnvio=
+  // GET /pca/pncp/envios?idOrganizacao=&status=&tipoEnvio=&idPlano=
   app.get('/pca/pncp/envios', async (request, reply) => {
-    const { idOrganizacao, status, tipoEnvio } = request.query as {
-      idOrganizacao: string; status?: string; tipoEnvio?: string
+    const { idOrganizacao, status, tipoEnvio, idPlano } = request.query as {
+      idOrganizacao: string; status?: string; tipoEnvio?: string; idPlano?: string
     }
     if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
     try {
-      return reply.send(await listarEnviosPncp(idOrganizacao, { status, tipoEnvio }))
+      return reply.send(await listarEnviosPncp(idOrganizacao, { status, tipoEnvio, idPlano }))
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
