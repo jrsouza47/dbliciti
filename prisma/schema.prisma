@@ -230,6 +230,7 @@ model Usuario {
   enviosPncpConferidos      PncpEnvioPca[]          @relation("PncpConferidor")
   enviosPncpCsvGerados      PncpEnvioPca[]          @relation("PncpCsvGerador")
   revisoesPcaAprovadas      RevisaoPca[]            @relation("RevisaoPcaAprovador")
+  revisoesPcaSolicitadas    RevisaoPca[]            @relation("RevisaoPcaSolicitante")
   relatoriosPcaGerados      RelatorioPca[]
 
   @@map("usuario")
@@ -1369,6 +1370,7 @@ model ItemPca {
   riscos     RiscoItemPca[]
   enviosPncp PncpEnvioPca[]
   pedidos    Pedido[]
+  revisoes   RevisaoPca[]
 
   @@unique([idOrganizacao, numero])
   @@index([idPlano])
@@ -1457,14 +1459,29 @@ model PncpEnvioPca {
 // Também serve de histórico de versões do PCA (tela "Histórico do PCA").
 model RevisaoPca {
   id            String @id @default(uuid())
-  idPlano       String @map("id_plano")
+  idPlano       String @map("id_plano") // plano vigente no momento da proposta (versão sendo revisada)
   idOrganizacao String @map("id_organizacao")
 
-  tipoJanela          String    @map("tipo_janela") // SET_NOV | POS_LDO | EXECUCAO
-  motivo              String    // fato ensejador (redimensionar/excluir) ou imprevisibilidade (incluir)
-  descricaoAlteracoes String    @map("descricao_alteracoes")
-  versaoResultante    Int       @map("versao_resultante")
+  // Item alvo da alteração — vazio em INCLUSAO de item novo (usa
+  // descricaoNovoItem/novoValor em vez de referenciar um ItemPca existente)
+  idItemPca      String? @map("id_item_pca")
+  tipoAlteracao  String  @map("tipo_alteracao") // INCLUSAO | EXCLUSAO | REDIMENSIONAMENTO
 
+  tipoJanela          String  @map("tipo_janela") // SET_NOV | POS_LDO | EXECUCAO
+  motivo              String  // fato ensejador (redimensionar/excluir) ou imprevisibilidade (incluir)
+  descricaoAlteracoes String  @map("descricao_alteracoes") // resumo legível, gerado ao criar a proposta
+  descricaoNovoItem   String? @map("descricao_novo_item")  // só para INCLUSAO
+  valorAnterior       Decimal? @map("valor_anterior") @db.Decimal(15, 2)
+  novoValor           Decimal? @map("novo_valor") @db.Decimal(15, 2)
+
+  status String @default("EM_APROVACAO") @map("status") // EM_APROVACAO | APROVADO | REJEITADO
+
+  foraDaJanela            Boolean @default(false) @map("fora_da_janela")
+  justificativaForaJanela String? @map("justificativa_fora_janela")
+
+  versaoResultante    Int?      @map("versao_resultante") // só preenchido quando aprovado (nova versão criada)
+
+  idSolicitante       String?   @map("id_solicitante")
   idAprovador         String?   @map("id_aprovador")
   dataAprovacao       DateTime? @map("data_aprovacao")
   dataPublicacaoSitio DateTime? @map("data_publicacao_sitio")
@@ -1473,9 +1490,12 @@ model RevisaoPca {
 
   plano       PlanoContratacaoAnual @relation(fields: [idPlano], references: [id])
   organizacao Organizacao           @relation(fields: [idOrganizacao], references: [id])
+  item        ItemPca?              @relation(fields: [idItemPca], references: [id])
+  solicitante Usuario?              @relation("RevisaoPcaSolicitante", fields: [idSolicitante], references: [id])
   aprovador   Usuario?              @relation("RevisaoPcaAprovador", fields: [idAprovador], references: [id])
 
   @@index([idPlano])
+  @@index([status])
   @@map("revisao_pca")
 }
 

@@ -100,3 +100,35 @@ export const TIPO_RELATORIO_PCA = {
   TRIMESTRAL:   'TRIMESTRAL',
   SIMPLIFICADO: 'SIMPLIFICADO',
 } as const
+
+// Tela 10 — Revisão e redimensionamento (item 9.8 da norma)
+export const TIPO_ALTERACAO_REVISAO = {
+  INCLUSAO: 'INCLUSAO',
+  EXCLUSAO: 'EXCLUSAO',
+  REDIMENSIONAMENTO: 'REDIMENSIONAMENTO',
+} as const
+
+export const STATUS_REVISAO = {
+  EM_APROVACAO: 'EM_APROVACAO',
+  APROVADO: 'APROVADO',
+  REJEITADO: 'REJEITADO',
+} as const
+
+export const TIPO_JANELA_REVISAO = {
+  SET_NOV: 'SET_NOV', // 1-30/set ou 16-30/nov — automático
+  POS_LDO: 'POS_LDO', // 15 dias após aprovação da LDO — data externa, não rastreada pelo sistema
+} as const
+
+// Janelas automáticas de revisão: 1º a 30 de setembro, e 16 a 30 de novembro.
+// A janela pós-LDO (15 dias após aprovação da LDO) depende de uma data externa
+// que o sistema não tem como saber sozinho — por isso não é verificada aqui;
+// fora das duas janelas de calendário, o usuário marca "fora da janela" e
+// justifica (mesmo padrão já usado no envio de demanda).
+export function dentroJanelaRevisao(data: Date = new Date()): boolean {
+  const ano = data.getFullYear()
+  const inicioSet = new Date(ano, 8, 1)                 // 1º de setembro
+  const fimSet     = new Date(ano, 8, 30, 23, 59, 59)    // 30 de setembro
+  const inicioNov  = new Date(ano, 10, 16)               // 16 de novembro
+  const fimNov     = new Date(ano, 10, 30, 23, 59, 59)   // 30 de novembro
+  return (data >= inicioSet && data <= fimSet) || (data >= inicioNov && data <= fimNov)
+}

@@ -17,7 +17,7 @@ interface ConsolidarInput {
   unidadeFornecimento?: string
 }
 
-async function gerarNumeroItemPca(idOrganizacao: string, ano: number): Promise<string> {
+export async function gerarNumeroItemPca(idOrganizacao: string, ano: number): Promise<string> {
   // Antes usava count() — quebrou quando passamos a apagar itens
   // reprovados/ajustados (a contagem de itens restantes fica menor que
   // o maior número já emitido, e o próximo número gerado colide com um
