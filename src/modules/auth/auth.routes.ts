@@ -52,6 +52,66 @@ async function getPrimeiraFilialUsuario(
   return vinculo?.filial ?? null
 }
 
+// Helper: todas as organizações que o usuário pode acessar — SEMPRE inclui
+// a organização principal (usuario.idOrganizacao), mesclada com vínculos
+// secundários em usuario_organizacao (multi-empresa). Antes desta correção,
+// login e trocar-organizacao olhavam só para usuario_organizacao, então um
+// usuário sem vínculo explícito para a própria organização principal (caso
+// comum — o vínculo principal não precisa de linha em usuario_organizacao)
+// não conseguia logar nem trocar de volta para ela.
+async function organizacoesDoUsuario(usuario: {
+  id: string
+  idOrganizacao: string
+  perfil: string
+  alcadaValor: any
+}): Promise<Array<{
+  idOrganizacao: string
+  perfil: string
+  alcadaValor: number | null
+  organizacao: { id: string; nome: string; slug: string | null; ativo: boolean; modelo: number; idGrupo: string | null }
+}>> {
+  const orgPrincipal = await prisma.organizacao.findUnique({
+    where: { id: usuario.idOrganizacao },
+    select: { id: true, nome: true, slug: true, ativo: true, modelo: true, idGrupo: true },
+  })
+
+  const vinculos = await prisma.usuarioOrganizacao.findMany({
+    where: { idUsuario: usuario.id, ativo: true, organizacao: { ativo: true } },
+    include: { organizacao: { select: { id: true, nome: true, slug: true, ativo: true, modelo: true, idGrupo: true } } },
+  })
+
+  const resultado: Array<{
+    idOrganizacao: string
+    perfil: string
+    alcadaValor: number | null
+    organizacao: { id: string; nome: string; slug: string | null; ativo: boolean; modelo: number; idGrupo: string | null }
+  }> = []
+  const vistos = new Set<string>()
+
+  if (orgPrincipal && orgPrincipal.ativo) {
+    resultado.push({
+      idOrganizacao: orgPrincipal.id,
+      perfil: usuario.perfil,
+      alcadaValor: usuario.alcadaValor ? Number(usuario.alcadaValor) : null,
+      organizacao: orgPrincipal,
+    })
+    vistos.add(orgPrincipal.id)
+  }
+
+  for (const v of vinculos) {
+    if (vistos.has(v.idOrganizacao)) continue // já entrou como principal, evita duplicar
+    resultado.push({
+      idOrganizacao: v.idOrganizacao,
+      perfil: v.perfil,
+      alcadaValor: v.alcadaValor ? Number(v.alcadaValor) : null,
+      organizacao: v.organizacao,
+    })
+    vistos.add(v.idOrganizacao)
+  }
+
+  return resultado
+}
+
 export async function authRoutes(app: FastifyInstance) {
 
   // POST /auth/login
@@ -70,19 +130,6 @@ export async function authRoutes(app: FastifyInstance) {
 
     const usuario = await prisma.usuario.findFirst({
       where: { OR: [{ email: id }, { login: id }] },
-      include: {
-        organizacoes: {
-          where: { ativo: true },
-          include: {
-            organizacao: {
-              select: {
-                id: true, nome: true, slug: true, ativo: true,
-                modelo: true, idGrupo: true,
-              },
-            },
-          },
-        },
-      },
     })
 
     if (!usuario || !usuario.senhaHash) {
@@ -98,75 +145,19 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Credenciais invalidas' })
     }
 
-    const orgsAtivas = usuario.organizacoes.filter((v) => v.organizacao.ativo)
-
-    // Fallback sem vinculo em usuario_organizacao
-    if (orgsAtivas.length === 0) {
-      const org = await prisma.organizacao.findUnique({
-        where: { id: usuario.idOrganizacao },
-        select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true, ativo: true },
-      })
-
-      if (!org || !org.ativo) {
-        return reply.status(403).send({ error: 'Nenhuma organizacao ativa vinculada ao usuario.' })
-      }
-
-      const usaFiliais1 = (await lerConfiguracao(org.id, 'usaFiliais').catch(() => false)) as boolean
-      const usaGrupo1   = (await lerConfiguracao(org.id, 'usaGrupo').catch(() => false)) as boolean
-
-      let idFilialFinal: string | null = null
-      let nomeFilialFinal: string | null = null
-
-      if (!usaFiliais1) {
-        const fv = await getFilialVirtual(org.id)
-        idFilialFinal   = fv?.id   ?? null
-        nomeFilialFinal = fv?.nome ?? null
-      } else {
-        // Com filiais: busca primeira filial vinculada ao usuario
-        const filialAtiva = await getPrimeiraFilialUsuario(usuario.id, org.id)
-        idFilialFinal   = filialAtiva?.id   ?? null
-        nomeFilialFinal = filialAtiva?.nome ?? null
-      }
-
-      const payload: JwtPayload = {
-        sub: usuario.id,
-        nome: usuario.nome,
-        email: usuario.email,
-        login: usuario.login,
-        perfil: usuario.perfil,
-        alcadaValor: usuario.alcadaValor ? Number(usuario.alcadaValor) : null,
-        idOrganizacao: org.id,
-        nomeOrganizacao: org.nome,
-        slugOrganizacao: org.slug,
-        modeloOrganizacao: org.modelo,
-        idGrupo: org.idGrupo,
-        usaFiliais: usaFiliais1,
-        isMatriz: !usaFiliais1,
-        usaGrupo: usaGrupo1,
-        idFilial: idFilialFinal,
-        nomeFilial: nomeFilialFinal,
-        trocarSenha: usuario.trocarSenha ?? false,
-      }
-
-      return reply.send({ token: assinarToken(payload), usuario: payload })
+    // Organização de destino: por padrão SEMPRE a principal do usuário
+    // (usuario.idOrganizacao) — é o que a pessoa espera ao logar. Só usa
+    // outra se idOrganizacao for explicitamente enviado no body (ex.: um
+    // futuro seletor de empresa na tela de login) e o usuário tiver acesso
+    // a ela (principal ou vínculo secundário em usuario_organizacao).
+    const acessiveis = await organizacoesDoUsuario(usuario)
+    if (acessiveis.length === 0) {
+      return reply.status(403).send({ error: 'Nenhuma organizacao ativa vinculada ao usuario.' })
     }
 
-    // Multiplas orgs
-    if (orgsAtivas.length > 1 && !idOrganizacao) {
-      return reply.status(200).send({
-        selecionarOrganizacao: true,
-        organizacoes: orgsAtivas.map((v) => ({
-          id: v.organizacao.id,
-          nome: v.organizacao.nome,
-          slug: v.organizacao.slug,
-          perfil: v.perfil,
-        })),
-      })
-    }
-
-    let vinculo = orgsAtivas[0]
+    let vinculo = acessiveis.find((v) => v.idOrganizacao === usuario.idOrganizacao) ?? acessiveis[0]
     if (idOrganizacao) {
-      const encontrado = orgsAtivas.find((v) => v.idOrganizacao === idOrganizacao)
+      const encontrado = acessiveis.find((v) => v.idOrganizacao === idOrganizacao)
       if (!encontrado) return reply.status(403).send({ error: 'Organizacao nao vinculada ao usuario.' })
       vinculo = encontrado
     }
@@ -194,7 +185,7 @@ export async function authRoutes(app: FastifyInstance) {
       email: usuario.email,
       login: usuario.login,
       perfil: vinculo.perfil,
-      alcadaValor: vinculo.alcadaValor ? Number(vinculo.alcadaValor) : null,
+      alcadaValor: vinculo.alcadaValor,
       idOrganizacao: vinculo.organizacao.id,
       nomeOrganizacao: vinculo.organizacao.nome,
       slugOrganizacao: vinculo.organizacao.slug,
@@ -300,23 +291,14 @@ export async function authRoutes(app: FastifyInstance) {
       perfilDestino = 'Admin'
       alcadaDestino = null
     } else {
-      const vinculo = await prisma.usuarioOrganizacao.findFirst({
-        where: {
-          idUsuario: usuarioToken.sub,
-          idOrganizacao,
-          ativo: true,
-          organizacao: { ativo: true },
-        },
-        include: {
-          organizacao: { select: { id: true, nome: true, slug: true, ativo: true, modelo: true, idGrupo: true } },
-        },
-      })
-      if (!vinculo) {
+      const acessiveis = await organizacoesDoUsuario(usuario)
+      const encontrado = acessiveis.find((v) => v.idOrganizacao === idOrganizacao)
+      if (!encontrado) {
         return reply.status(403).send({ error: 'Usuario nao tem acesso a essa organizacao' })
       }
-      orgDestino = vinculo.organizacao
-      perfilDestino = vinculo.perfil
-      alcadaDestino = vinculo.alcadaValor ? Number(vinculo.alcadaValor) : null
+      orgDestino = encontrado.organizacao
+      perfilDestino = encontrado.perfil
+      alcadaDestino = encontrado.alcadaValor
     }
 
     const usaFiliais = (await lerConfiguracao(orgDestino.id, 'usaFiliais').catch(() => false)) as boolean
@@ -370,12 +352,6 @@ export async function authRoutes(app: FastifyInstance) {
         where: { id: payload.sub },
         include: {
           organizacao: { select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true } },
-          organizacoes: {
-            where: { ativo: true },
-            include: {
-              organizacao: { select: { id: true, nome: true, slug: true, modelo: true, idGrupo: true, ativo: true } },
-            },
-          },
         },
       })
       if (!usuario || !usuario.ativo) return reply.status(401).send({ error: 'Usuario nao encontrado ou inativo' })
@@ -398,28 +374,17 @@ export async function authRoutes(app: FastifyInstance) {
           perfil: 'Admin',
         }))
       } else {
-        // Usuário normal — só as orgs vinculadas
-        organizacoes = usuario.organizacoes
-          .filter(v => v.organizacao.ativo)
-          .map(v => ({
-            idOrganizacao: v.organizacao.id,
-            nomeOrganizacao: v.organizacao.nome,
-            slugOrganizacao: v.organizacao.slug,
-            modeloOrganizacao: v.organizacao.modelo,
-            idGrupo: v.organizacao.idGrupo,
-            perfil: v.perfil,
-          }))
-        // Garante ao menos a org principal se não tiver vínculos
-        if (organizacoes.length === 0) {
-          organizacoes = [{
-            idOrganizacao: usuario.idOrganizacao,
-            nomeOrganizacao: usuario.organizacao.nome,
-            slugOrganizacao: usuario.organizacao.slug,
-            modeloOrganizacao: usuario.organizacao.modelo,
-            idGrupo: usuario.organizacao.idGrupo,
-            perfil: usuario.perfil,
-          }]
-        }
+        // Usuário normal — organização principal sempre incluída, mesclada
+        // com vínculos secundários (multi-empresa).
+        const acessiveis = await organizacoesDoUsuario(usuario)
+        organizacoes = acessiveis.map(v => ({
+          idOrganizacao: v.organizacao.id,
+          nomeOrganizacao: v.organizacao.nome,
+          slugOrganizacao: v.organizacao.slug,
+          modeloOrganizacao: v.organizacao.modelo,
+          idGrupo: v.organizacao.idGrupo,
+          perfil: v.perfil,
+        }))
       }
 
       return reply.send({
