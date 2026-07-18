@@ -135,6 +135,7 @@ model Organizacao {
   deParaItensSistema   DeParaItemSistemaCorporativo[]
   enviosPncpPca        PncpEnvioPca[]
   revisoesPca          RevisaoPca[]
+  relatoriosPca        RelatorioPca[]
   integracaoErp        IntegracaoErp?
 
   @@map("organizacao")
@@ -223,11 +224,13 @@ model Usuario {
   sugestoesIaDecididas      SugestaoIaDfd[]         @relation("SugestaoIaDecisor")
   itensPcaConsolidados      ItemPca[]               @relation("ItemPcaConsolidador")
   itensPcaAprovados         ItemPca[]               @relation("ItemPcaAprovador")
+  itensPcaExecucaoAtualizada ItemPca[]              @relation("ItemPcaExecucao")
   itensPcaAprovadosNivel2  ItemPca[]                @relation("ItemPcaAprovadorIntermediario")
   riscosResponsavel         RiscoItemPca[]          @relation("RiscoResponsavel")
   enviosPncpConferidos      PncpEnvioPca[]          @relation("PncpConferidor")
   enviosPncpCsvGerados      PncpEnvioPca[]          @relation("PncpCsvGerador")
   revisoesPcaAprovadas      RevisaoPca[]            @relation("RevisaoPcaAprovador")
+  relatoriosPcaGerados      RelatorioPca[]
 
   @@map("usuario")
 }
@@ -1208,8 +1211,9 @@ model PlanoContratacaoAnual {
   aprovador   Usuario?    @relation("PlanoPcaAprovador", fields: [idAprovador], references: [id])
 
   dfds     Dfd[]
-  itens    ItemPca[]
-  revisoes RevisaoPca[]
+  itens      ItemPca[]
+  revisoes   RevisaoPca[]
+  relatorios RelatorioPca[]
   envios   PncpEnvioPca[]
 
   @@unique([idOrganizacao, ano, versao])
@@ -1342,6 +1346,12 @@ model ItemPca {
   // Calendário de licitação (montado pela CPLIC a partir da data desejada + dependências)
   dataPrevistaLicitacao DateTime? @map("data_prevista_licitacao") @db.Date
 
+  // Execução (Tela 9 / item 9.7 da norma) — declaração MANUAL de quem
+  // acompanha o PCA (GECOP), não vem de nenhuma integração automática.
+  situacaoExecucao          String?   @map("situacao_execucao") // NO_PRAZO | ATRASADO | EXECUTADO
+  dataAtualizacaoExecucao   DateTime? @map("data_atualizacao_execucao")
+  atualizadoExecucaoPor     String?   @map("atualizado_execucao_por")
+
   criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
@@ -1353,6 +1363,7 @@ model ItemPca {
   aprovadorIntermediario Usuario? @relation("ItemPcaAprovadorIntermediario", fields: [idAprovadorIntermediario], references: [id])
   dependencia            ItemPca? @relation("ItemPcaDependencia", fields: [idItemPcaDependencia], references: [id])
   dependentes            ItemPca[] @relation("ItemPcaDependencia")
+  atualizadoExecucaoPorUsuario Usuario? @relation("ItemPcaExecucao", fields: [atualizadoExecucaoPor], references: [id])
 
   dfdsOrigem Dfd[]
   riscos     RiscoItemPca[]
@@ -1466,6 +1477,37 @@ model RevisaoPca {
 
   @@index([idPlano])
   @@map("revisao_pca")
+}
+
+// ── Histórico de relatórios/publicações do PCA (Tela 9 / item 9.9 da norma) ─
+// Um registro por geração: relatório trimestral (interno, GECOP -> Autoridade
+// Competente) ou relatório simplificado (público, divulgado no sítio em até
+// 15 dias corridos após a aprovação). Os números (itens/valor executados)
+// ficam congelados no momento da geração — servem de retrato histórico,
+// mesmo que a situação de execução dos itens mude depois.
+model RelatorioPca {
+  id            String @id @default(uuid())
+  idOrganizacao String @map("id_organizacao")
+  idPlano       String @map("id_plano")
+
+  tipo      String @map("tipo")      // TRIMESTRAL | SIMPLIFICADO
+  trimestre Int?   @map("trimestre") // só para TRIMESTRAL (1-4)
+
+  itensExecutados Int     @default(0) @map("itens_executados")
+  itensTotal      Int     @default(0) @map("itens_total")
+  valorExecutado  Decimal @default(0) @map("valor_executado") @db.Decimal(15, 2)
+  valorTotal      Decimal @default(0) @map("valor_total") @db.Decimal(15, 2)
+
+  idGeradoPor String   @map("id_gerado_por")
+  criadoEm    DateTime @default(now()) @map("criado_em")
+
+  organizacao Organizacao            @relation(fields: [idOrganizacao], references: [id])
+  plano       PlanoContratacaoAnual  @relation(fields: [idPlano], references: [id])
+  geradoPor   Usuario                @relation(fields: [idGeradoPor], references: [id])
+
+  @@index([idOrganizacao])
+  @@index([idPlano])
+  @@map("relatorio_pca")
 }
 
 

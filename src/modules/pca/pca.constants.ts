@@ -88,3 +88,15 @@ export const CAMPOS_MINIMOS_ENVIO_DFD = [
   'prioridade',
   'dataDesejada',
 ] as const
+
+// Tela 9 — Relatórios de execução (item 9.7 da norma — declaração MANUAL)
+export const SITUACAO_EXECUCAO = {
+  NO_PRAZO:  'NO_PRAZO',
+  ATRASADO:  'ATRASADO',
+  EXECUTADO: 'EXECUTADO',
+} as const
+
+export const TIPO_RELATORIO_PCA = {
+  TRIMESTRAL:   'TRIMESTRAL',
+  SIMPLIFICADO: 'SIMPLIFICADO',
+} as const
