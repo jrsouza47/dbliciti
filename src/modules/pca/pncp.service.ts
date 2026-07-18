@@ -74,9 +74,15 @@ export async function listarEnviosPncp(
     include: {
       itemPca: {
         select: {
-          id: true, numero: true, descricaoObjeto: true,
-          quantidadeTotal: true, valorTotal: true, unidadeFornecimento: true,
-          dfdsOrigem: { select: { centroCusto: { select: { id: true, codigo: true, descricao: true } } } },
+          id: true, numero: true, descricaoObjeto: true, tipoObjeto: true,
+          quantidadeTotal: true, valorTotal: true, unidadeFornecimento: true, dataDesejada: true,
+          itemCatalogo: { select: { codigoInterno: true, nome: true } },
+          dfdsOrigem: {
+            select: {
+              codigoSistemaCorporativo: true,
+              centroCusto: { select: { id: true, codigo: true, descricao: true } },
+            },
+          },
         },
       },
       plano: { select: { id: true, ano: true, versao: true } },
