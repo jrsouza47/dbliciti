@@ -87,6 +87,7 @@ export async function listarEnviosPncp(
       },
       plano: { select: { id: true, ano: true, versao: true } },
       conferidoPor: { select: { id: true, nome: true } },
+      csvGeradoPorUsuario: { select: { id: true, nome: true } },
     },
     orderBy: { criadoEm: 'desc' },
   })
@@ -135,7 +136,15 @@ export async function registrarErroEnvioPncp(id: string, params: { idOrganizacao
   })
 }
 
-// ── Reenvio manual (botão "Reenviar" do monitor) ──────────────────────────
+// ── Marcar CSV de referência como gerado (1 ou vários de uma vez) ────────
+export async function marcarCsvGerado(ids: string[], params: { idOrganizacao: string; idUsuario: string }) {
+  if (ids.length === 0) return { atualizados: 0 }
+  const resultado = await prisma.pncpEnvioPca.updateMany({
+    where: { id: { in: ids }, idOrganizacao: params.idOrganizacao },
+    data: { csvGeradoEm: new Date(), csvGeradoPor: params.idUsuario },
+  })
+  return { atualizados: resultado.count }
+}
 export async function reenviarEnvioPncp(id: string, idOrganizacao: string) {
   const envio = await prisma.pncpEnvioPca.findFirst({ where: { id, idOrganizacao } })
   if (!envio) throw new Error('Envio não encontrado')

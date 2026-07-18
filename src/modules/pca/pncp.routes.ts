@@ -9,6 +9,7 @@ import {
   confirmarEnvioPncp,
   registrarErroEnvioPncp,
   reenviarEnvioPncp,
+  marcarCsvGerado,
 } from './pncp.service'
 
 export async function pncpRoutes(app: FastifyInstance) {
@@ -48,6 +49,14 @@ export async function pncpRoutes(app: FastifyInstance) {
     const { idOrganizacao } = request.body as { idOrganizacao: string }
     try {
       return reply.send(await reenviarEnvioPncp(id, idOrganizacao))
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
+  })
+
+  // POST /pca/pncp/envios/marcar-csv-gerado — marca 1 ou vários de uma vez
+  app.post('/pca/pncp/envios/marcar-csv-gerado', async (request, reply) => {
+    const { ids, idOrganizacao, idUsuario } = request.body as { ids: string[]; idOrganizacao: string; idUsuario: string }
+    try {
+      return reply.send(await marcarCsvGerado(ids, { idOrganizacao, idUsuario }))
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 }

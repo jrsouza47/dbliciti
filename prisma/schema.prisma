@@ -226,6 +226,7 @@ model Usuario {
   itensPcaAprovadosNivel2  ItemPca[]                @relation("ItemPcaAprovadorIntermediario")
   riscosResponsavel         RiscoItemPca[]          @relation("RiscoResponsavel")
   enviosPncpConferidos      PncpEnvioPca[]          @relation("PncpConferidor")
+  enviosPncpCsvGerados      PncpEnvioPca[]          @relation("PncpCsvGerador")
   revisoesPcaAprovadas      RevisaoPca[]            @relation("RevisaoPcaAprovador")
 
   @@map("usuario")
@@ -1424,6 +1425,9 @@ model PncpEnvioPca {
   dataConferencia DateTime? @map("data_conferencia")
   dataEnvio       DateTime? @map("data_envio")
 
+  csvGeradoEm  DateTime? @map("csv_gerado_em")
+  csvGeradoPor String?   @map("csv_gerado_por")
+
   criadoEm     DateTime @default(now()) @map("criado_em")
   atualizadoEm DateTime @updatedAt @map("atualizado_em")
 
@@ -1431,6 +1435,7 @@ model PncpEnvioPca {
   itemPca      ItemPca?               @relation(fields: [idItemPca], references: [id])
   plano        PlanoContratacaoAnual? @relation(fields: [idPlano], references: [id])
   conferidoPor Usuario?               @relation("PncpConferidor", fields: [idConferidoPor], references: [id])
+  csvGeradoPorUsuario Usuario?        @relation("PncpCsvGerador", fields: [csvGeradoPor], references: [id])
 
   @@index([idOrganizacao])
   @@index([status])
