@@ -290,7 +290,6 @@ model CentroCusto {
   pedidos     Pedido[]
   dfds        Dfd[]
 
-  @@unique([idOrganizacao, codigo])
   @@unique([idOrganizacao, codigoBenner])
   @@map("centro_custo")
 }
