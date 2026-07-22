@@ -132,6 +132,28 @@ export async function toggleAtivo(id: string, idOrganizacao: string) {
   return result[0]
 }
 
+// ── 6b. Excluir (hard delete) ──────────────────────────────
+export async function excluirArea(id: string, idOrganizacao: string) {
+  const existente = await prisma.$queryRaw<AreaPlana[]>`
+    SELECT id, codigo, apelido, nome, nivel, id_pai as "idPai", ativo
+    FROM area_organizacional
+    WHERE id = ${id} AND id_organizacao = ${idOrganizacao}
+  `
+  if (!existente[0]) throw new Error('Área não encontrada')
+
+  const filhos = await prisma.$queryRaw<{ total: bigint }[]>`
+    SELECT COUNT(*)::bigint as total FROM area_organizacional WHERE id_pai = ${id}
+  `
+  if (Number(filhos[0]?.total ?? 0) > 0) {
+    throw new Error('Não é possível excluir: esta área possui subáreas vinculadas. Exclua ou mova as subáreas primeiro.')
+  }
+
+  await prisma.$executeRaw`
+    DELETE FROM area_organizacional WHERE id = ${id} AND id_organizacao = ${idOrganizacao}
+  `
+  return existente[0]
+}
+
 // ── 7. Importação em lote ──────────────────────────────────
 export async function importarAreas(
   idOrganizacao: string,

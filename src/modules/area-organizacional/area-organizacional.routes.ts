@@ -11,6 +11,7 @@ import {
   criarArea,
   atualizarArea,
   toggleAtivo,
+  excluirArea,
   importarAreas,
 } from './area-organizacional.service'
 
@@ -87,6 +88,17 @@ export async function areaOrganizacionalRoutes(app: FastifyInstance) {
     try {
       const area = await toggleAtivo(id, idOrganizacao)
       return reply.send(area)
+    } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
+  })
+
+  // DELETE /areas/:id?idOrganizacao= — excluir (bloqueado se houver subáreas)
+  app.delete('/areas/:id', async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { idOrganizacao } = request.query as { idOrganizacao: string }
+    if (!idOrganizacao) return reply.status(400).send({ erro: 'idOrganizacao obrigatorio' })
+    try {
+      const area = await excluirArea(id, idOrganizacao)
+      return reply.send({ ok: true, area })
     } catch (err: any) { return reply.status(400).send({ erro: err.message }) }
   })
 
