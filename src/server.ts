@@ -8,6 +8,7 @@ import { catalogoDuplicatasRoutes } from './modules/catalogo/catalogo.duplicatas
 import { catalogoCatmatRoutes } from './modules/catalogo/catalogo.catmat.routes'
 import { configuracoesRoutes } from './modules/configuracoes/configuracoes.routes'
 import { hierarquiaRoutes } from './modules/hierarquia/hierarquia.routes'
+import { areaOrganizacionalRoutes } from './modules/area-organizacional/area-organizacional.routes'
 import { catalogoImportacaoRoutes } from './modules/catalogo/catalogo.importacao.routes'
 import { pedidoRoutes } from './modules/pedido/routes/pedido.routes'
 import { fornecedorRoutes } from './modules/fornecedor/routes/fornecedor.routes'
@@ -64,6 +65,7 @@ app.register(catalogoDuplicatasRoutes)
 app.register(catalogoCatmatRoutes)
 app.register(configuracoesRoutes)
 app.register(hierarquiaRoutes)
+app.register(areaOrganizacionalRoutes)
 app.register(pedidoRoutes)
 app.register(fornecedorRoutes)
 app.register(licitacaoRoutes)
