@@ -274,11 +274,24 @@ model CentroCusto {
   descricao     String
   ativo         Boolean @default(true)
 
+  // Referência à estrutura organizacional do Benner (De-Para) — campos
+  // informativos, sem integridade referencial forçada no dbliciti, já que
+  // hoje não existe tela de hierarquia de centro de custo. Servem pra
+  // manter rastreabilidade com a origem e permitir reimportação/atualização
+  // sem duplicar (chave: idOrganizacao + codigoBenner).
+  codigoBenner        Int?      @map("codigo_benner")         // CODIGO no Benner
+  ultimoNivel         Boolean?  @map("ultimo_nivel")           // ULTIMONIVEL (S/N) — folha da estrutura
+  nivelSuperiorBenner Int?      @map("nivel_superior_benner")  // NIVELSUPERIOR — codigoBenner do pai
+  estruturaBenner     String?   @map("estrutura_benner")       // ESTRUTURA — caminho hierárquico (ex.: 1.03.007.001)
+  dataInclusaoBenner  DateTime? @map("data_inclusao_benner")
+  dataAlteracaoBenner DateTime? @map("data_alteracao_benner")
+
   organizacao Organizacao @relation(fields: [idOrganizacao], references: [id])
   pedidos     Pedido[]
   dfds        Dfd[]
 
   @@unique([idOrganizacao, codigo])
+  @@unique([idOrganizacao, codigoBenner])
   @@map("centro_custo")
 }
 
